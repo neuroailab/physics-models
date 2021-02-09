@@ -1,0 +1,4 @@
+*.swp
+env/
+physion.egg-info
+__pycache__/
