@@ -3,7 +3,7 @@ import copy
 import pickle
 import torch
 import tensorflow as tf
-from physion.tfdata_provider.data_provider import SequenceNewDataProvider as DataProvider
+from physion.data.data_provider import SequenceNewDataProvider as DataProvider
 
 def filter_rule(data, keys):
     assert all(k in keys for k in ['is_moving', 'is_acting']), keys

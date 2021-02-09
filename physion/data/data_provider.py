@@ -4,7 +4,7 @@ import tensorflow as tf
 import pickle
 import copy
 
-from physion.tfdata_provider.data_utils import Filter
+from physion.data.data_utils import Filter
 
 
 class SequenceNewDataProvider(object):
