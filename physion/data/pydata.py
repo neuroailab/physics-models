@@ -9,8 +9,16 @@ def filter_rule(data, keys):
     assert all(k in keys for k in ['is_moving', 'is_acting']), keys
     return tf.logical_and(data['is_moving'], tf.logical_not(data['is_acting']))
 
-DEFAULT_SOURCES = ['images', 'reference_ids', 'object_data']
-DEFAULT_FILTER_RULE = (filter_rule, ['is_moving', 'is_acting'])
+DEFAULT_DATA_PARAMS = {
+    'sources': ['images', 'reference_ids', 'object_data'],
+    'filter_rule': (filter_rule, ['is_moving', 'is_acting']),
+    'enqueue_batch_size': 256,
+    'buffer_size': 16,
+    'map_pcall_num': 4,
+    'shuffle': False, # shuffling will be done by pytorch dataprovider
+    'use_legacy_sequence_mode': True,
+    'main_source_key': 'images',
+}
 
 class TDWDataset(object):
     """Data handler which loads the TDW images."""
@@ -18,46 +26,48 @@ class TDWDataset(object):
     def __init__(
             self,
             data_root, 
-            label_key, 
             data_cfg,
-            size=None, # TODO: put into cfg?
             train=True,
             ):
-        self.cfg = data_cfg
-        self.label_key = label_key
-        self.sources = DEFAULT_SOURCES + [label_key]
+        self.train = train
+        self.label_key = data_cfg.DATA.LABEL_KEY
+        self.imsize = data_cfg.IMSIZE
+        self.seq_len = data_cfg.SEQ_LEN
+        self.shift_selector = slice(*data_cfg.DATA.SHIFTS)
+
+        self._set_size(data_cfg)
+        self._set_datapaths(data_root)
+        self.data = self.build_data()
+
+    def _set_datapaths(self, data_root):
         if not isinstance(data_root, list):
             data_root = [data_root]
-        if train:
+        if self.train:
             self.datapaths = [os.path.join(dir, 'new_tfdata') for dir in data_root]
         else:
             self.datapaths = [os.path.join(dir, 'new_tfvaldata') for dir in data_root]
-        self.data = self.build_data()
-        if size is not None:
-            self.N = size
+
+    def _set_size(self, data_cfg):
+        if self.train:
+            self.N = data_cfg.DATA.TRAIN_SIZE
         else:
-            self.N = 10000 # 57856 # TODO
-        self.imsize = data_cfg.IMSIZE
+            self.N = data_cfg.DATA.TEST_SIZE
+        print('Dataset size: {}'.format(self.N))
 
     def __len__(self):
         return self.N
 
     def build_data(self):
         print('Building TF Dataset')
-        data_provider = DataProvider(
-            data=self.datapaths,
-            enqueue_batch_size=self.cfg.ENQUEUE_BATCH_SIZE,
-            sources=self.sources,
-            sequence_len=self.cfg.SEQ_LEN,
-            shift_selector=slice(*self.cfg.SHIFTS),
-            buffer_size=self.cfg.BUFFER_SIZE,
-            filter_rule=DEFAULT_FILTER_RULE,
-            seed=0, # shouldn't actually be necessary since we're not shuffling
-            shuffle=False, # shuffling will be done by pytorch dataprovider
-            use_legacy_sequence_mode=True,
-        )
-        assert self.cfg.BATCH_SIZE == 1
-        dataset = data_provider.build_datasets(self.cfg.BATCH_SIZE)
+        tfdata_params = copy.deepcopy(DEFAULT_DATA_PARAMS)
+        tfdata_params['sources'].append(self.label_key)
+        tfdata_params['data'] = self.datapaths
+        tfdata_params['sequence_len'] = self.seq_len
+        tfdata_params['shift_selector'] = self.shift_selector
+
+        data_provider = DataProvider(**tfdata_params)
+        batch_size = 1 # only use bs=1 since get_seq gets once sample at a time
+        dataset = data_provider.build_datasets(batch_size)
         data = iter(dataset)
         return data
 
@@ -83,30 +93,33 @@ class TDWDataset(object):
     def __getitem__(self, index):
         return self.get_seq(index)
 
-class TDWHumanDataset(object):
+class TDWHumanDataset(object): # TODO: use common base class with TDWDatasetj?
     def __init__(
             self,
             data_root, 
-            label_key, 
-            data_cfg, # only used for imsize
+            data_cfg,
             ):
-        self.label_key = label_key
+        self.label_key = data_cfg.DATA.LABEL_KEY
+        self.imsize = data_cfg.IMSIZE
+
+        self._set_datapaths(data_root)
+        data = self.build_data()
+        self.N = len(data) # must do before converting to iterator
+        print('Dataset size: {}'.format(self.N))
+        self.data = iter(data) # could probably also use list and index into it in __getitem__
+
+    def _set_datapaths(self, data_root):
         if not isinstance(data_root, list):
             data_root = [data_root]
         self.datapaths = [os.path.join(path, 'raw_data.pickle') for path in data_root]
+
+    def build_data(self):
         data = []
         for path in self.datapaths :
-            data.extend(self.build_data(path))
-        self.N = len(data) # must do before converting to iterator
-        self.data = iter(data) # could probably also use list and index into it in __getitem__
-        self.imsize = data_cfg.IMSIZE
+            data.extend(pickle.load(open(path, 'rb')))
+        return data
 
-    @staticmethod
-    def build_data(path):
-        dataset = pickle.load(open(path, 'rb'))
-        return dataset
-
-    def __len__(self): # TODO: use common base class?
+    def __len__(self):
         return self.N
 
     def get_seq(self, index):
