@@ -2,3 +2,4 @@
 env/
 physion.egg-info
 __pycache__/
+*.pyc
