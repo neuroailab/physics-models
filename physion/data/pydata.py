@@ -101,6 +101,7 @@ class TDWHumanDataset(object): # TODO: use common base class with TDWDatasetj?
             ):
         self.label_key = data_cfg.DATA.LABEL_KEY
         self.imsize = data_cfg.IMSIZE
+        self.seq_len = data_cfg.SEQ_LEN
 
         self._set_datapaths(data_root)
         data = self.build_data()
