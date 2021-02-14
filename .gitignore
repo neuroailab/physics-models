@@ -1,5 +1,5 @@
 *.swp
-env/
+.venv/
 physion.egg-info
 __pycache__/
 *.pyc
