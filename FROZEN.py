@@ -8,6 +8,7 @@ from hyperopt import STATUS_OK
 
 from physopt.utils import PhysOptObjective
 import physion.modules.frozen as modules
+from physopt.models.physion.config import get_frozen_physion_cfg
 from physion.data.pydata import TDWDataset, TDWHumanDataset
 from physion.data.config import get_data_cfg
 from physion.utils import init_seed, get_subsets_from_datasets
@@ -16,8 +17,6 @@ import torch
 import torch.nn as nn 
 import torch.optim as optim
 import tensorflow as tf
-
-TRAIN_EPOCHS = 1
 
 def run(
     name,
@@ -28,29 +27,33 @@ def run(
     encoder='vgg',
     dynamics='lstm',
     feature_file=None,
+    debug=False,
     ):
     subsets = get_subsets_from_datasets(datasets)
-    data_cfg = get_data_cfg(subsets, debug=True) # TODO: use subsets to get cfg instead?
+    data_cfg = get_data_cfg(subsets, debug=debug) # TODO: use subsets to get cfg instead?
     data_cfg.freeze()
-    print(subsets, data_cfg)
 
-    print(name, datasets, model_dir, encoder, dynamics)
+    cfg = get_frozen_physion_cfg(debug=debug)
+    cfg.freeze()
+
     model_file = os.path.join(model_dir, 'model.pt')
-    device = torch.device('cuda') # TODO
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    model =  get_model(encoder, dynamics).to(device)
     config = {
         'name': name,
         'datapaths': datasets,
+        'device': device, 
         'encoder': encoder,
         'dynamics': dynamics,
-        'batch_size': 64,
+        'model': model,
+        'epochs': cfg.EPOCHS,
+        'batch_size': cfg.BATCH_SIZE,
+        'lr': cfg.LR,
         'model_file': model_file,
         'feature_file': feature_file,
-        'state_len': 4, # number of images as input
-        'device': device,
+        'state_len': cfg.STATE_LEN, # number of images as input
         'data_cfg': data_cfg, # TODO: use merge_from_list/file method
     }
-    model =  get_model(config['encoder'], config['dynamics']).to(device)
-    config['model'] = model
     init_seed(seed)
     if write_feat:
         test(config)
@@ -62,10 +65,10 @@ def get_model(encoder, dynamics):
 
 def train(config):
     device = config['device']
-    model = config['model']
+    model =  config['model']
 
     criterion = nn.MSELoss()
-    optimizer = optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
 
     dataset = TDWDataset(
         data_root=config['datapaths'],
@@ -74,7 +77,7 @@ def train(config):
     trainloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
 
     best_loss = 1e9
-    for epoch in range(TRAIN_EPOCHS):
+    for epoch in range(config['epochs']):
         running_loss = 0.
         for i, data in enumerate(trainloader):
             images = data['images'].to(device)
@@ -99,9 +102,8 @@ def train(config):
 
 def test(config):
     device = config['device']
-    encoder = config['encoder']
+    model =  config['model']
     state_len = config['state_len']
-    model = config['model']
 
     # load weights
     model.load_state_dict(torch.load(config['model_file']))
@@ -155,10 +157,11 @@ class Objective(PhysOptObjective):
             feat_data,
             output_dir,
             extract_feat,
+            debug,
             encoder,
             dynamics,
             ):
-        super().__init__(exp_key, seed, train_data, feat_data, output_dir, extract_feat)
+        super().__init__(exp_key, seed, train_data, feat_data, output_dir, extract_feat, debug)
         self.encoder = encoder
         self.dynamics = dynamics
 
@@ -174,7 +177,8 @@ class Objective(PhysOptObjective):
                 encoder=self.encoder,
                 dynamics=self.dynamics,
                 feature_file=self.feature_file,
-                ) # TODO: combine args into (YACS) cfg?
+                debug=self.debug,
+                ) 
 
         else: # run model training
             run(
@@ -184,7 +188,8 @@ class Objective(PhysOptObjective):
                 model_dir=self.model_dir,
                 encoder=self.encoder,
                 dynamics=self.dynamics,
-                ) # TODO: add args
+                debug=self.debug,
+                )
 
         return {
                 'loss': 0.0,
