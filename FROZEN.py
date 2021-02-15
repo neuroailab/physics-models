@@ -29,12 +29,13 @@ def run(
     feature_file=None,
     debug=False,
     ):
-    subsets = get_subsets_from_datasets(datasets)
-    data_cfg = get_data_cfg(subsets, debug=debug)
-    data_cfg.freeze()
-
     cfg = get_frozen_physion_cfg(debug=debug)
     cfg.freeze()
+
+    subsets = get_subsets_from_datasets(datasets)
+    data_cfg = get_data_cfg(subsets, debug=debug)
+    data_cfg.merge_from_other_cfg(cfg.DATA) # TODO: better method?
+    data_cfg.freeze()
 
     model_file = os.path.join(model_dir, 'model.pt')
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -52,7 +53,7 @@ def run(
         'lr': cfg.LR,
         'model_file': model_file,
         'feature_file': feature_file,
-        'state_len': cfg.STATE_LEN, # number of images as input
+        'state_len': cfg.DATA.STATE_LEN, # number of images as input
         'data_cfg': data_cfg, 
     }
     init_seed(seed)
@@ -82,7 +83,7 @@ def train(config):
         running_loss = 0.
         for i, data in enumerate(trainloader):
             images = data['images'].to(device)
-            inputs = images[:,:4]
+            inputs = images[:,:4] # TODO: have state_len(4) accounted for in dataprovider
             labels = model.get_encoder_feats(images[:,4])
             optimizer.zero_grad()
 
