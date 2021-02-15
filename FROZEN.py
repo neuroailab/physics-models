@@ -30,7 +30,7 @@ def run(
     debug=False,
     ):
     subsets = get_subsets_from_datasets(datasets)
-    data_cfg = get_data_cfg(subsets, debug=debug) # TODO: use subsets to get cfg instead?
+    data_cfg = get_data_cfg(subsets, debug=debug)
     data_cfg.freeze()
 
     cfg = get_frozen_physion_cfg(debug=debug)
@@ -39,6 +39,7 @@ def run(
     model_file = os.path.join(model_dir, 'model.pt')
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model =  get_model(encoder, dynamics).to(device)
+    # model = nn.DataParallel(model) # TODO: multi-gpu doesn't work
     config = {
         'name': name,
         'datapaths': datasets,
@@ -52,7 +53,7 @@ def run(
         'model_file': model_file,
         'feature_file': feature_file,
         'state_len': cfg.STATE_LEN, # number of images as input
-        'data_cfg': data_cfg, # TODO: use merge_from_list/file method
+        'data_cfg': data_cfg, 
     }
     init_seed(seed)
     if write_feat:
