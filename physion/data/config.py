@@ -5,7 +5,7 @@ _C = CN()
 # Data Provider Params
 _C.DATA = CN(new_allowed=True) # placeholder, should be overwritten by dataset specific config
 
-## model specific
+## model specific - defaults
 _C.STATE_LEN = 4
 _C.SEQ_LEN = 10
 _C.IMSIZE = 224

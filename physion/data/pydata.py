@@ -1,6 +1,7 @@
 import os
 import copy
 import pickle
+import numpy as np
 import torch
 import tensorflow as tf
 from physion.data.tfdata import SequenceNewDataProvider as DataProvider
@@ -20,7 +21,56 @@ DEFAULT_DATA_PARAMS = {
     'main_source_key': 'images',
 }
 
-class TDWDataset(object):
+class TDWDatasetBase(object):
+    def __init__(
+            self,
+            data_cfg,
+            ):
+        self.label_key = data_cfg.DATA.LABEL_KEY
+        self.imsize = data_cfg.IMSIZE
+        self.seq_len = data_cfg.SEQ_LEN
+        self.state_len = data_cfg.STATE_LEN # not necessarily always used
+        assert self.seq_len > self.state_len, 'Sequence length {} must be greater than state length {}'.format(self.seq_len, self.state_len)
+
+    def __len__(self):
+        return self.N # assumes self.N is set
+
+    def __getitem__(self, index):
+        return self.get_seq(index)
+
+    def get_seq(self, index):
+        try:
+            batch = next(self.data) # assumes self.data is set
+        except StopIteration:
+            print('End of Dataset')
+            raise
+
+        batch_images = self._to_tensor(batch['images'][0]) # (seq_len, image_size, image_size, 3)
+        assert batch_images.shape[0] == self.seq_len, 'size of images {} must match seq_len {}'.format(batch_images.shape, self.seq_len)
+        batch_images = batch_images.float().permute(0, 3, 1, 2) # (T, 3, D, D)
+        batch_images = torch.nn.functional.interpolate(batch_images, size=self.imsize)
+
+        batch_labels = self._to_tensor(batch[self.label_key][0]) # (seq_len, ...)
+        assert batch_labels.shape[0] == self.seq_len, 'size of labels {} must match seq_len {}'.format(batch_labels.shape, self.seq_len)
+
+        # TODO: add human_prob
+        sample = {
+            'images': batch_images,
+            'binary_labels': batch_labels,
+            }
+
+        return sample
+
+    @staticmethod
+    def _to_tensor(arr): # convert to torch tensor
+        if not isinstance(arr, np.ndarray):
+            try:
+                arr = arr.numpy()
+            except:
+                print('{} type cannot be converted to np.ndarray'.format(type(arr)))
+        return torch.from_numpy(arr)
+
+class TDWDataset(TDWDatasetBase):
     """Data handler which loads the TDW images."""
 
     def __init__(
@@ -29,23 +79,19 @@ class TDWDataset(object):
             data_cfg,
             train=True,
             ):
-        self.train = train
-        self.label_key = data_cfg.DATA.LABEL_KEY
-        self.imsize = data_cfg.IMSIZE
-        self.seq_len = data_cfg.SEQ_LEN
-        self.shift_selector = slice(*data_cfg.DATA.SHIFTS)
+        super().__init__(data_cfg)
+        self.train = train # TODO: move train and build_data into base class?
+        self.data = self.build_data(data_root, data_cfg)
 
-        self._set_size(data_cfg)
-        self._set_datapaths(data_root)
-        self.data = self.build_data()
-
-    def _set_datapaths(self, data_root):
+    @staticmethod
+    def _get_datapaths(data_root, train):
         if not isinstance(data_root, list):
             data_root = [data_root]
-        if self.train:
-            self.datapaths = [os.path.join(dir, 'new_tfdata') for dir in data_root]
+        if train:
+            datapaths = [os.path.join(dir, 'new_tfdata') for dir in data_root]
         else:
-            self.datapaths = [os.path.join(dir, 'new_tfvaldata') for dir in data_root]
+            datapaths = [os.path.join(dir, 'new_tfvaldata') for dir in data_root]
+        return datapaths
 
     def _set_size(self, data_cfg):
         if self.train:
@@ -54,88 +100,45 @@ class TDWDataset(object):
             self.N = data_cfg.DATA.TEST_SIZE
         print('Dataset size: {}'.format(self.N))
 
-    def __len__(self):
-        return self.N
+    def build_data(self, data_root, data_cfg): # also sets size
+        self._set_size(data_cfg)
 
-    def build_data(self):
         print('Building TF Dataset')
         tfdata_params = copy.deepcopy(DEFAULT_DATA_PARAMS)
         tfdata_params['sources'].append(self.label_key)
-        tfdata_params['data'] = self.datapaths
+        tfdata_params['data'] = self._get_datapaths(data_root, self.train)
         tfdata_params['sequence_len'] = self.seq_len
-        tfdata_params['shift_selector'] = self.shift_selector
+        tfdata_params['shift_selector'] = slice(*data_cfg.DATA.SHIFTS)
 
         data_provider = DataProvider(**tfdata_params)
         batch_size = 1 # only use bs=1 since get_seq gets once sample at a time
         dataset = data_provider.build_datasets(batch_size)
-        data = iter(dataset)
-        return data
+        return iter(dataset)
 
-    def get_seq(self, index):
-        try:
-            batch = self.data.get_next()
-        except StopIteration:
-            print('End of TF Dataset')
-            # self.data = build_data(self.DATA_PARAMS)
-            # batch = next(self.data)
-            raise
-        batch_images = batch['images'][0] # [seq_len, image_size, image_size, 3]
-        batch_labels = torch.from_numpy(batch[self.label_key][0].numpy()) # (seq_len, 2) TODO key
-        image_seq = torch.from_numpy(batch_images.numpy()).float().permute(0, 3, 1, 2) # (T, 3, D, D)
-        image_seq = torch.nn.functional.interpolate(image_seq, size=self.imsize)
-        sample = {
-            'images': image_seq,
-            'binary_labels': batch_labels,
-            }
-
-        return sample
-
-    def __getitem__(self, index):
-        return self.get_seq(index)
-
-class TDWHumanDataset(object): # TODO: use common base class with TDWDatasetj?
+class TDWHumanDataset(TDWDatasetBase):
     def __init__(
             self,
             data_root, 
             data_cfg,
             ):
-        self.label_key = data_cfg.DATA.LABEL_KEY
-        self.imsize = data_cfg.IMSIZE
-        self.seq_len = data_cfg.SEQ_LEN
+            super().__init__(data_cfg)
+            self.data =  self.build_data(data_root)
 
-        self._set_datapaths(data_root)
-        data = self.build_data()
-        self.N = len(data) # must do before converting to iterator
-        print('Dataset size: {}'.format(self.N))
-        self.data = iter(data) # could probably also use list and index into it in __getitem__
-
-    def _set_datapaths(self, data_root):
+    @staticmethod
+    def _get_datapaths(data_root):
         if not isinstance(data_root, list):
             data_root = [data_root]
-        self.datapaths = [os.path.join(path, 'raw_data.pickle') for path in data_root]
+        datapaths = [os.path.join(path, 'raw_data.pickle') for path in data_root]
+        return datapaths
 
-    def build_data(self):
+    def _set_size(self, data):
+        self.N = len(data) 
+        print('Dataset size: {}'.format(self.N))
+
+    def build_data(self, data_root): # also sets size
         data = []
-        for path in self.datapaths :
+        for path in self._get_datapaths(data_root):
             data.extend(pickle.load(open(path, 'rb')))
-        return data
+        self._set_size(data) # must do before converting to iterator
+        return iter(data)
 
-    def __len__(self):
-        return self.N
-
-    def get_seq(self, index):
-        data = next(self.data)
-        images = data['images'][0] # (10, 256, 256, 3)
-        binary_labels = torch.from_numpy(data[self.label_key][0]) # (10, ...)
-        # TODO: add human_prob
-        image_seq = torch.from_numpy(images).float().permute(0, 3, 1, 2) # (T, 3, D, D)
-        image_seq = torch.nn.functional.interpolate(image_seq, size=self.imsize) # (T, 3, D', D')
-    
-        sample = {
-            'images': image_seq,
-            'binary_labels': binary_labels,
-        }
-        return sample
-
-    def __getitem__(self, index):
-        return self.get_seq(index)

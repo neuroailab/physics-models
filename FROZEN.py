@@ -68,6 +68,7 @@ def get_model(encoder, dynamics):
 def train(config):
     device = config['device']
     model =  config['model']
+    state_len = config['state_len']
 
     criterion = nn.MSELoss()
     optimizer = optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
@@ -83,8 +84,8 @@ def train(config):
         running_loss = 0.
         for i, data in enumerate(trainloader):
             images = data['images'].to(device)
-            inputs = images[:,:4] # TODO: have state_len(4) accounted for in dataprovider
-            labels = model.get_encoder_feats(images[:,4])
+            inputs = images[:,:state_len] # TODO: have state_len accounted for in dataprovider
+            labels = model.get_encoder_feats(images[:,state_len])
             optimizer.zero_grad()
 
             outputs = model(inputs)
