@@ -32,11 +32,6 @@ def run(
     cfg = get_frozen_physion_cfg(debug=debug)
     cfg.freeze()
 
-    subsets = get_subsets_from_datasets(datasets)
-    data_cfg = get_data_cfg(subsets, debug=debug)
-    data_cfg.merge_from_other_cfg(cfg.DATA) # TODO: better method?
-    data_cfg.freeze()
-
     model_file = os.path.join(model_dir, 'model.pt')
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model =  get_model(encoder, dynamics).to(device)
@@ -53,8 +48,10 @@ def run(
         'lr': cfg.LR,
         'model_file': model_file,
         'feature_file': feature_file,
-        'state_len': cfg.DATA.STATE_LEN, # number of images as input
-        'data_cfg': data_cfg, 
+        'imsize': cfg.IMSIZE,
+        'seq_len': cfg.SEQ_LEN,
+        'state_len': cfg.STATE_LEN, # number of images as input
+        'debug': debug,
     }
     init_seed(seed)
     if write_feat:
@@ -75,7 +72,10 @@ def train(config):
 
     dataset = TDWDataset(
         data_root=config['datapaths'],
-        data_cfg=config['data_cfg'],
+        imsize=config['imsize'],
+        seq_len=config['seq_len'],
+        state_len=config['state_len'],
+        debug=config['debug'],
         )
     trainloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
 
@@ -115,12 +115,17 @@ def test(config):
     if 'human' in config['name']:
         dataset = TDWHumanDataset(
             data_root=config['datapaths'],
-            data_cfg=config['data_cfg'],
+            imsize=config['imsize'],
+            seq_len=config['seq_len'],
+            state_len=config['state_len'],
             )
     else:
         dataset = TDWDataset(
             data_root=config['datapaths'],
-            data_cfg=config['data_cfg'],
+            imsize=config['imsize'],
+            seq_len=config['seq_len'],
+            state_len=config['state_len'],
+            debug=config['debug'],
             )
     testloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False)
 

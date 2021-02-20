@@ -4,7 +4,9 @@ import pickle
 import numpy as np
 import torch
 import tensorflow as tf
+from physion.data.config import get_data_cfg
 from physion.data.tfdata import SequenceNewDataProvider as DataProvider
+from physion.utils import get_subsets_from_datasets
 
 def filter_rule(data, keys):
     assert all(k in keys for k in ['is_moving', 'is_acting']), keys
@@ -24,13 +26,18 @@ DEFAULT_DATA_PARAMS = {
 class TDWDatasetBase(object):
     def __init__(
             self,
-            data_cfg,
+            imsize,
+            seq_len,
+            state_len,
+            train=True,
+            debug=False,
             ):
-        self.label_key = data_cfg.DATA.LABEL_KEY
-        self.imsize = data_cfg.IMSIZE
-        self.seq_len = data_cfg.SEQ_LEN
-        self.state_len = data_cfg.STATE_LEN # not necessarily always used
+        self.imsize = imsize
+        self.seq_len = seq_len
+        self.state_len = state_len # not necessarily always used
         assert self.seq_len > self.state_len, 'Sequence length {} must be greater than state length {}'.format(self.seq_len, self.state_len)
+        self.train = train
+        self.debug = debug
 
     def __len__(self):
         return self.N # assumes self.N is set
@@ -75,13 +82,12 @@ class TDWDataset(TDWDatasetBase):
 
     def __init__(
             self,
-            data_root, 
-            data_cfg,
-            train=True,
+            data_root,
+            *args,
+            **kwargs,
             ):
-        super().__init__(data_cfg)
-        self.train = train # TODO: move train and build_data into base class?
-        self.data = self.build_data(data_root, data_cfg)
+        super().__init__(*args, **kwargs)
+        self.data = self.build_data(data_root)
 
     @staticmethod
     def _get_datapaths(data_root, train):
@@ -100,8 +106,11 @@ class TDWDataset(TDWDatasetBase):
             self.N = data_cfg.DATA.TEST_SIZE
         print('Dataset size: {}'.format(self.N))
 
-    def build_data(self, data_root, data_cfg): # also sets size
+    def build_data(self, data_root): # also sets size
+        data_cfg = get_data_cfg(get_subsets_from_datasets(data_root), self.debug)
+        data_cfg.freeze()
         self._set_size(data_cfg)
+        self.label_key = data_cfg.DATA.LABEL_KEY # TODOj
 
         print('Building TF Dataset')
         tfdata_params = copy.deepcopy(DEFAULT_DATA_PARAMS)
@@ -119,9 +128,10 @@ class TDWHumanDataset(TDWDatasetBase):
     def __init__(
             self,
             data_root, 
-            data_cfg,
+            *args,
+            **kwargs,
             ):
-            super().__init__(data_cfg)
+            super().__init__(*args, **kwargs)
             self.data =  self.build_data(data_root)
 
     @staticmethod
@@ -136,6 +146,10 @@ class TDWHumanDataset(TDWDatasetBase):
         print('Dataset size: {}'.format(self.N))
 
     def build_data(self, data_root): # also sets size
+        data_cfg = get_data_cfg(get_subsets_from_datasets(data_root), self.debug)
+        data_cfg.freeze()
+        self.label_key = data_cfg.DATA.LABEL_KEY # TODO
+
         data = []
         for path in self._get_datapaths(data_root):
             data.extend(pickle.load(open(path, 'rb')))

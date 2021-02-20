@@ -10,10 +10,9 @@ _C.BATCH_SIZE = 64
 _C.LR = 1e-3
 
 # Model
-_C.DATA = CN() # also used for dataprovider
-_C.DATA.STATE_LEN = 4 # number of images as input
-_C.DATA.SEQ_LEN = 10
-_C.DATA.IMSIZE = 224
+_C.STATE_LEN = 4 # number of images as input
+_C.SEQ_LEN = 10
+_C.IMSIZE = 224
 
 def get_frozen_physion_cfg(debug=False):
     C =  _C.clone()
