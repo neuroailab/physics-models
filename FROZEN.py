@@ -18,47 +18,6 @@ import torch.nn as nn
 import torch.optim as optim
 import tensorflow as tf
 
-def run(
-    name,
-    datasets,
-    seed,
-    model_dir,
-    write_feat='',
-    encoder='vgg',
-    dynamics='lstm',
-    feature_file=None,
-    debug=False,
-    ):
-    cfg = get_frozen_physion_cfg(debug=debug)
-    cfg.freeze()
-
-    model_file = os.path.join(model_dir, 'model.pt')
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    model =  get_model(encoder, dynamics).to(device)
-    # model = nn.DataParallel(model) # TODO: multi-gpu doesn't work
-    config = {
-        'name': name,
-        'datapaths': datasets,
-        'device': device, 
-        'encoder': encoder,
-        'dynamics': dynamics,
-        'model': model,
-        'epochs': cfg.EPOCHS,
-        'batch_size': cfg.BATCH_SIZE,
-        'lr': cfg.LR,
-        'model_file': model_file,
-        'feature_file': feature_file,
-        'imsize': cfg.IMSIZE,
-        'seq_len': cfg.SEQ_LEN,
-        'state_len': cfg.STATE_LEN, # number of images as input
-        'debug': debug,
-    }
-    init_seed(seed)
-    if write_feat:
-        test(config)
-    else:
-        train(config)
-
 def get_model(encoder, dynamics):
     return modules.FrozenPhysion(encoder, dynamics)
 
@@ -174,30 +133,34 @@ class Objective(PhysOptObjective):
         self.dynamics = dynamics
 
     def __call__(self, *args, **kwargs):
-        if self.extract_feat: # save out model features from trained model
-            write_feat = 'human' if 'human' in self.feat_data['name'] else 'train'
-            run(
-                name=self.feat_data['name'],
-                datasets=self.feat_data['data'],
-                seed=self.seed,
-                model_dir=self.model_dir,
-                write_feat=write_feat,
-                encoder=self.encoder,
-                dynamics=self.dynamics,
-                feature_file=self.feature_file,
-                debug=self.debug,
-                ) 
+        cfg = get_frozen_physion_cfg(debug=self.debug)
+        cfg.freeze()
 
+        model_file = os.path.join(self.model_dir, 'model.pt') # TODO: move to PhysOptObjective?
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        model =  get_model(self.encoder, self.dynamics).to(device)
+        # model = nn.DataParallel(model) # TODO: multi-gpu doesn't work
+        config = {
+            'name': self.feat_data['name'],
+            'datapaths': self.feat_data['data'],
+            'device': device, 
+            'model': model,
+            'epochs': cfg.EPOCHS,
+            'batch_size': cfg.BATCH_SIZE,
+            'lr': cfg.LR,
+            'model_file': model_file,
+            'feature_file': self.feature_file,
+            'imsize': cfg.IMSIZE,
+            'seq_len': cfg.SEQ_LEN,
+            'state_len': cfg.STATE_LEN, # number of images as input
+            'debug': self.debug, # for dp
+        }
+        init_seed(self.seed)
+
+        if self.extract_feat: # save out model features from trained model
+            test(config) 
         else: # run model training
-            run(
-                name=self.train_data['name'],
-                datasets=self.train_data['data'],
-                seed=self.seed,
-                model_dir=self.model_dir,
-                encoder=self.encoder,
-                dynamics=self.dynamics,
-                debug=self.debug,
-                )
+            train(config)
 
         return {
                 'loss': 0.0,
