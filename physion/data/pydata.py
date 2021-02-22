@@ -17,7 +17,7 @@ DEFAULT_DATA_PARAMS = {
     'filter_rule': (filter_rule, ['is_moving', 'is_acting']),
     'enqueue_batch_size': 256,
     'buffer_size': 16,
-    'map_pcall_num': 4,
+    'map_pcall_num': 1,
     'shuffle': False, # shuffling will be done by pytorch dataprovider
     'use_legacy_sequence_mode': True,
     'main_source_key': 'images',
