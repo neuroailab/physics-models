@@ -133,6 +133,7 @@ class Objective(PhysOptObjective):
         self.dynamics = dynamics
 
     def __call__(self, *args, **kwargs):
+        results = super().__call__()
         cfg = get_frozen_physion_cfg(debug=self.debug)
         cfg.freeze()
 
@@ -162,15 +163,10 @@ class Objective(PhysOptObjective):
         else: # run model training
             train(config)
 
-        return {
-                'loss': 0.0,
-                'status': STATUS_OK,
-                'exp_key': self.exp_key,
-                'seed': self.seed,
-                'train_data': self.train_data,
-                'feat_data': self.feat_data,
-                'model_dir': self.model_dir,
-                }
+        results['loss'] = 0.
+        results['encoder'] = self.encoder
+        results['dynamics'] = self.dynamicsj
+        return results
 
 class VGGFrozenMLPObjective(Objective):
     def __init__(self, *args, **kwargs):
