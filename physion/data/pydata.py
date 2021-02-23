@@ -52,6 +52,7 @@ class TDWDatasetBase(object):
             print('End of Dataset')
             raise
 
+        # TODO: check that first dim is 1 before doing [0]
         batch_images = self._to_tensor(batch['images'][0]) # (seq_len, image_size, image_size, 3)
         assert batch_images.shape[0] == self.seq_len, 'size of images {} must match seq_len {}'.format(batch_images.shape, self.seq_len)
         batch_images = batch_images.float().permute(0, 3, 1, 2) # (T, 3, D, D)
@@ -60,11 +61,13 @@ class TDWDatasetBase(object):
         batch_labels = self._to_tensor(batch[self.label_key][0]) # (seq_len, ...)
         assert batch_labels.shape[0] == self.seq_len, 'size of labels {} must match seq_len {}'.format(batch_labels.shape, self.seq_len)
 
-        # TODO: add human_prob
         sample = {
             'images': batch_images,
             'binary_labels': batch_labels,
             }
+        # add human_prob
+        if 'human_prob' in batch:
+            sample['human_prob'] = batch['human_prob'][0] # (4,)j
 
         return sample
 

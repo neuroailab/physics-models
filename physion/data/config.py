@@ -11,6 +11,7 @@ def get_data_cfg(subsets, debug=False):
     if debug:
         C.DATA.TRAIN_SIZE = 100
         C.DATA.TEST_SIZE = 10
+        C.DATA.SHIFTS = (30, 1024, 16)
     return C
 
 def get_tdw_cfg(subsets):
