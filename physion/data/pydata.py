@@ -67,7 +67,7 @@ class TDWDatasetBase(object):
             }
         # add human_prob
         if 'human_prob' in batch:
-            sample['human_prob'] = batch['human_prob'][0] # (4,)j
+            sample['human_prob'] = batch['human_prob'][0] # (4,)
 
         return sample
 
