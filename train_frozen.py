@@ -1,18 +1,17 @@
-import argparse
+import socket
 import torch.optim as optim
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import physion.modules.frozen as modules
 from physion.data.pydata import TDWDataset
-from physion.data.config import get_data_cfg
-from physion.utils import get_subsets_from_datasets
+from config import get_frozen_physion_cfg
 import pdb
 
-def run():
-    datasets = ['/data1/eliwang/physion/rigid/collide2_new']
-    subsets = get_subsets_from_datasets(datasets)
-    cfg  = get_data_cfg(subsets)
+DEBUG = True
+
+def run(dataset):
+    cfg = get_frozen_physion_cfg(DEBUG)
     cfg.freeze() 
 
     device = torch.device('cpu')
@@ -21,16 +20,19 @@ def run():
     model = modules.FrozenPhysion(encoder, dynamics).to(device)
     print(model)
     criterion = nn.MSELoss()
-    optimizer = optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=cfg.LR, momentum=0.9)
 
     dataset = TDWDataset(
         data_root=datasets,
+        seq_len=cfg.SEQ_LEN,
+        state_len=cfg.STATE_LEN,
+        imsize=cfg.IMSIZE, 
         train=True,
-        data_cfg=cfg,
+        debug=DEBUG, 
         )
-    trainloader = DataLoader(dataset, batch_size=64, shuffle=True)
+    trainloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=True)
 
-    for epoch in range(5):
+    for epoch in range(cfg.EPOCHS):
         running_loss = 0.
         for i, data in enumerate(trainloader):
             images = data['images'].to(device)
@@ -48,4 +50,8 @@ def run():
         
 
 if __name__ == '__main__':
-    run()
+    if socket.gethostname() == 'node19-ccncluster':
+        datasets = ['/data1/eliwang/physion/rigid/collide2_new']
+    else:
+        datasets = ['/mnt/fs4/mrowca/neurips/images/rigid/collide2_new']
+    run(datasets)
