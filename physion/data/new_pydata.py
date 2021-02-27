@@ -52,17 +52,21 @@ class TDWDataset(Dataset):
                 images.append(img)
                 lbl = f['frames'][frame]['labels']['target_contacting_zone'][()]
                 labels.append(lbl)
-        images = torch.from_numpy(np.array(images))[:self.seq_len]
-        labels = torch.from_numpy(np.array(labels))[:self.seq_len]
+        images = torch.from_numpy(np.array(images))
+        labels = torch.from_numpy(np.array(labels))
 
+        images = images[::2] # subsample images by 2x - 30fps => 15 fps
         images = images.float().permute(0, 3, 1, 2) # (T, 3, D, D)
         images = torch.nn.functional.interpolate(images, size=self.imsize)
 
-        # randomly sample 1s sequence, subsample by 2x (15 frames), if train
-        # if extract feat, get whole sequence?
+        if self.train: # randomly sample sequence of seq_len
+            start_idx = torch.randint(0, images.shape[0]-self.seq_len+1, (1,))[0]
+            images = images[start_idx:start_idx+self.seq_len]
+            labels = labels[start_idx:start_idx+self.seq_len]
 
         sample = {
             'images': images,
             'binary_labels': labels,
         }
+        # TODO: add human_prob
         return sample
