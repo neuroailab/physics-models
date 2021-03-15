@@ -28,7 +28,7 @@ def run(args):
     cfg = get_frozen_physion_cfg(args.debug)
     cfg.freeze() 
 
-    device = torch.device('cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     encoder = 'deit'
     dynamics = 'mlp'
     model = modules.FrozenPhysion(encoder, dynamics).to(device)

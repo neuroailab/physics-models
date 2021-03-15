@@ -30,6 +30,10 @@ class VGG16_pretrained(nn.Module):
 # ---Dynamics---
 # Given a sequence of latent representations, generates the next latent
 class ID(nn.Module):
+    def __init__(self, latent_dim):
+        super().__init__()
+        self.latent_dim = latent_dim
+
     def forward(self, x):
         assert isinstance(x, list)
         return x[-1] # just return last embedding
