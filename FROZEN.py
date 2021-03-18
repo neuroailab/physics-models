@@ -38,6 +38,10 @@ def train(config):
         )
     trainloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
 
+    # save initial model
+    torch.save(model.state_dict(), config['model_file'])
+    print('Saved model checkpoint to: {}'.format(config['model_file']))
+
     best_loss = 1e9
     for epoch in range(config['epochs']):
         running_loss = 0.
@@ -165,8 +169,12 @@ class Objective(PhysOptObjective):
 
         results['loss'] = 0.
         results['encoder'] = self.encoder
-        results['dynamics'] = self.dynamicsj
+        results['dynamics'] = self.dynamics
         return results
+
+class VGGFrozenIDObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='vgg', dynamics='id')
 
 class VGGFrozenMLPObjective(Objective):
     def __init__(self, *args, **kwargs):
@@ -175,6 +183,10 @@ class VGGFrozenMLPObjective(Objective):
 class VGGFrozenLSTMObjective(Objective):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, encoder='vgg', dynamics='lstm')
+
+class DEITFrozenIDObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='deit', dynamics='id')
 
 class DEITFrozenMLPObjective(Objective):
     def __init__(self, *args, **kwargs):

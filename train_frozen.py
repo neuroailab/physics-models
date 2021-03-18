@@ -17,7 +17,10 @@ parser.add_argument('--debug', action='store_true')
 def run(args):
     if args.new:
         Dataset = NewTDWDataset
-        datasets = ['/mnt/fs4/dbear/tdw_datasets/example_dominoes']
+        if socket.gethostname() == 'node19-ccncluster':
+            datasets = ['/data1/eliwang/physion/example_dominoes']
+        else:
+            datasets = ['/mnt/fs4/dbear/tdw_datasets/example_dominoes']
     else:
         Dataset = TDWDataset
         if socket.gethostname() == 'node19-ccncluster':
