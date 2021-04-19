@@ -10,6 +10,7 @@ from physopt.utils import PhysOptObjective
 import physion.modules.frozen as modules
 from physopt.models.physion.config import get_frozen_physion_cfg
 from physion.data.pydata import TDWDataset, TDWHumanDataset
+from physion.data.new_pydata import TDWDataset as NewTDWDataset
 from physion.data.config import get_data_cfg
 from physion.utils import init_seed, get_subsets_from_datasets
 from torch.utils.data import DataLoader
@@ -21,6 +22,14 @@ import tensorflow as tf
 def get_model(encoder, dynamics):
     return modules.FrozenPhysion(encoder, dynamics)
 
+def get_dataset(dataset, human=False):
+    if dataset == 'new':
+        return NewTDWDataset
+    elif human:
+        return TDWHumanDataset
+    else:
+        return TDWDataset
+
 def train(config):
     device = config['device']
     model =  config['model']
@@ -29,7 +38,8 @@ def train(config):
     criterion = nn.MSELoss()
     optimizer = optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
 
-    dataset = TDWDataset(
+    Dataset = get_dataset(config['dataset'])
+    dataset = Dataset(
         data_root=config['datapaths'],
         imsize=config['imsize'],
         seq_len=config['seq_len'],
@@ -75,21 +85,15 @@ def test(config):
     model.load_state_dict(torch.load(config['model_file']))
     model.eval()
 
-    if 'human' in config['name']:
-        dataset = TDWHumanDataset(
-            data_root=config['datapaths'],
-            imsize=config['imsize'],
-            seq_len=config['seq_len'],
-            state_len=config['state_len'],
-            )
-    else:
-        dataset = TDWDataset(
-            data_root=config['datapaths'],
-            imsize=config['imsize'],
-            seq_len=config['seq_len'],
-            state_len=config['state_len'],
-            debug=config['debug'],
-            )
+    Dataset = get_dataset(config['dataset'], 'human' in config['name'])
+    dataset = Dataset(
+        data_root=config['datapaths'],
+        imsize=config['imsize'],
+        seq_len=config['seq_len'],
+        state_len=config['state_len'],
+        debug=config['debug'],
+        train=False, # TODO
+        )
     testloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False)
 
     extracted_feats = []
@@ -148,6 +152,7 @@ class Objective(PhysOptObjective):
         config = {
             'name': self.feat_data['name'],
             'datapaths': self.feat_data['data'],
+            'dataset': 'new', # TODO
             'device': device, 
             'model': model,
             'epochs': cfg.EPOCHS,

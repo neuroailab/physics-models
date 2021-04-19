@@ -4,8 +4,12 @@ import h5py
 import json
 from PIL import Image
 import numpy as np
+import logging
 import torch
 from  torch.utils.data import Dataset
+
+pil_logger = logging.getLogger('PIL')
+pil_logger.setLevel(logging.INFO)
 
 class TDWDataset(Dataset):
     def __init__(
@@ -55,14 +59,22 @@ class TDWDataset(Dataset):
         images = torch.from_numpy(np.array(images))
         labels = torch.from_numpy(np.array(labels))
 
-        images = images[::2] # subsample images by 2x - 30fps => 15 fps
+        subsample_factor = 8 # subsample images by 2x - 30fps => 15 fps
+        images = images[::subsample_factor]
         images = images.float().permute(0, 3, 1, 2) # (T, 3, D, D)
         images = torch.nn.functional.interpolate(images, size=self.imsize)
+
+        labels = labels[::subsample_factor]
+        labels = torch.unsqueeze(labels, -1)
 
         if self.train: # randomly sample sequence of seq_len
             start_idx = torch.randint(0, images.shape[0]-self.seq_len+1, (1,))[0]
             images = images[start_idx:start_idx+self.seq_len]
             labels = labels[start_idx:start_idx+self.seq_len]
+        else: # get last seq_len # of frames
+            images = images[-self.seq_len:]
+            labels = labels[-self.seq_len:]
+        # print(len(labels.numpy()), np.sum(labels.numpy()))
 
         sample = {
             'images': images,
