@@ -59,7 +59,7 @@ class TDWDataset(Dataset):
         images = torch.from_numpy(np.array(images))
         labels = torch.from_numpy(np.array(labels))
 
-        subsample_factor = 8 # subsample images by 2x - 30fps => 15 fps
+        subsample_factor = 3 # subsample images by 3x - 30fps => 10 fps TODO: make param
         images = images[::subsample_factor]
         images = images.float().permute(0, 3, 1, 2) # (T, 3, D, D)
         images = torch.nn.functional.interpolate(images, size=self.imsize)
