@@ -67,6 +67,7 @@ class TDWDataset(Dataset):
         labels = labels[::subsample_factor]
         labels = torch.unsqueeze(labels, -1)
 
+        assert images.shape[0] >= self.seq_len, 'Images must be at least len {}, but are shape {}'.format(self.seq_len, images.shape)
         if self.train: # randomly sample sequence of seq_len
             start_idx = torch.randint(0, images.shape[0]-self.seq_len+1, (1,))[0]
             images = images[start_idx:start_idx+self.seq_len]
