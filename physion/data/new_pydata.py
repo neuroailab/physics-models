@@ -53,6 +53,7 @@ class TDWDataset(Dataset):
             for frame in f['frames']:
                 img = f['frames'][frame]['images']['_img'][()]
                 img = np.array(Image.open(io.BytesIO(img))) # (256, 256, 3)
+                img = (img / 255.).astype(np.float32) # convert from [0, 255] to [0, 1]
                 images.append(img)
                 lbl = f['frames'][frame]['labels']['target_contacting_zone'][()]
                 labels.append(lbl)

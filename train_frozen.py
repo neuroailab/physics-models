@@ -18,7 +18,7 @@ def run(args):
     if args.new:
         Dataset = NewTDWDataset
         if socket.gethostname() == 'node19-ccncluster':
-            datasets = ['/data1/eliwang/physion/example_dominoes']
+            datasets = ['/data1/eliwang/physion/rigid/example_dominoes']
         else:
             datasets = ['/mnt/fs4/dbear/tdw_datasets/example_dominoes']
     else:

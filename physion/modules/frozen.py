@@ -2,6 +2,7 @@ from torchvision.models import vgg16_bn
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import transforms
 import pdb
 
 # ---Encoders---
@@ -15,6 +16,9 @@ class DEIT_pretrained(nn.Module):
         self.deit.head = nn.Identity() # hack to remove head
     
     def forward(self, x):
+        from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+        normalize = transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)
+        x = normalize(x)
         return self.deit(x)
 
 class VGG16_pretrained(nn.Module):
@@ -25,6 +29,8 @@ class VGG16_pretrained(nn.Module):
         self.latent_dim = list(self.vgg.modules())[-1].out_features
 
     def forward(self, x):
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        x = normalize(x)
         return self.vgg(x)
 
 # ---Dynamics---
