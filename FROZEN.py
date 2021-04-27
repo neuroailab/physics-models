@@ -35,6 +35,12 @@ def train(config):
     model =  config['model']
     state_len = config['state_len']
 
+    if os.path.isfile(config['model_file']): # load existing model ckpt
+        model.load_state_dict(torch.load(config['model_file']))
+        logging.info('Loaded existing ckpt')
+    else:
+        logging.info('Training from scratch')
+
     criterion = nn.MSELoss()
     optimizer = optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
 
@@ -83,9 +89,8 @@ def test(config):
     model =  config['model']
     state_len = config['state_len']
 
-    # load weights
-    model.load_state_dict(torch.load(config['model_file']))
-    model.eval()
+    model.load_state_dict(torch.load(config['model_file'])) # load weights
+    model.eval() # set to eval mode
 
     Dataset = get_dataset(config['dataset'], 'human' in config['name'])
     dataset = Dataset(

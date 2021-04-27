@@ -43,7 +43,7 @@ class MLP(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.regressor = nn.Sequential(
-            nn.Linear(self.latent_dim * 4, 1024),
+            nn.Linear(self.latent_dim * 15, 1024), # TODO: should multiply by state_len
             nn.ReLU(),
             nn.Linear(1024, self.latent_dim),
             )
