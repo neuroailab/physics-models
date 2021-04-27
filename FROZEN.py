@@ -54,6 +54,7 @@ def train(config):
 
     best_loss = 1e9
     for epoch in range(config['epochs']):
+        print('Staring epoch {}'.format(epoch))
         running_loss = 0.
         for i, data in enumerate(trainloader):
             images = data['images'].to(device)
@@ -74,6 +75,7 @@ def train(config):
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), config['model_file'])
+            logging.info('Saving model with loss {} at epoch {}'.format(best_loss, epoch))
             print('Saved model checkpoint to: {}'.format(config['model_file']))
 
 def test(config):
