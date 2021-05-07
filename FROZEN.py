@@ -60,7 +60,7 @@ def train(config):
 
     best_loss = 1e9
     for epoch in range(config['epochs']):
-        print('Staring epoch {}'.format(epoch))
+        print('Staring epoch {}/{}'.format(epoch+1, config['epochs']))
         running_loss = 0.
         for i, data in enumerate(trainloader):
             images = data['images'].to(device)
