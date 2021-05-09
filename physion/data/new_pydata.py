@@ -38,6 +38,7 @@ class TDWDataset(Dataset):
             #     self.metadata.extend(json.load(f)) # assumes metadata is sorted by stimulus name
         # assert len(self.metadata) == len(self.hdf5_files), 'Legnth of metadata {} should match hdf5 files {}'.format(len(self.metadata), len(self.hdf5_files))
         self.N = len(self.hdf5_files)
+        logging.info('Dataset len: {}'.format(self.N))
 
     def __len__(self):
         return self.N
