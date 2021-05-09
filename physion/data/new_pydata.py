@@ -1,5 +1,6 @@
 import os
 import io
+import glob
 import h5py
 import json
 from PIL import Image
@@ -30,13 +31,10 @@ class TDWDataset(Dataset):
         self.debug = debug
 
         self.hdf5_files = []
-        # self.metadata = []
         for path in data_root:
-            files = [os.path.join(path, f) for f in os.listdir(path)]
-            self.hdf5_files.extend(sorted(list(filter(lambda f: f.endswith('.hdf5'), files)))) # sorted list of all hdf5 files
-            # with open(os.path.join(path, 'metadata.json')) as f:
-            #     self.metadata.extend(json.load(f)) # assumes metadata is sorted by stimulus name
-        # assert len(self.metadata) == len(self.hdf5_files), 'Legnth of metadata {} should match hdf5 files {}'.format(len(self.metadata), len(self.hdf5_files))
+            assert '*.hdf5' in path
+            files = sorted(glob.glob(path))
+            self.hdf5_files.extend(files)
         self.N = len(self.hdf5_files)
         logging.info('Dataset len: {}'.format(self.N))
 
