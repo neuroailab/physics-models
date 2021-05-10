@@ -72,9 +72,9 @@ class TDWDataset(Dataset):
             start_idx = torch.randint(0, images.shape[0]-self.seq_len+1, (1,))[0]
             images = images[start_idx:start_idx+self.seq_len]
             labels = labels[start_idx:start_idx+self.seq_len]
-        else: # get last seq_len # of frames
-            images = images[-self.seq_len:]
-            labels = labels[-self.seq_len:]
+        else: # get first seq_len # of frames
+            images = images[:self.seq_len]
+            labels = labels[:self.seq_len]
         # print(len(labels.numpy()), np.sum(labels.numpy()))
 
         sample = {
