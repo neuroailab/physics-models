@@ -157,8 +157,6 @@ class Objective(PhysOptObjective):
         model =  get_model(self.encoder, self.dynamics).to(device)
         # model = nn.DataParallel(model) # TODO: multi-gpu doesn't work
         config = {
-            'name': self.feat_data['name'],
-            'datapaths': self.feat_data['data'],
             'dataset': 'new', # TODO
             'device': device, 
             'model': model,
@@ -175,8 +173,14 @@ class Objective(PhysOptObjective):
         init_seed(self.seed)
 
         if self.extract_feat: # save out model features from trained model
+            config['name'] = self.feat_data['name']
+            config['datapaths'] = self.feat_data['data']
+            logging.info(config)
             test(config) 
         else: # run model training
+            config['name'] = self.train_data['name']
+            config['datapaths'] = self.train_data['data']
+            logging.info(config)
             train(config)
 
         results['loss'] = 0.
