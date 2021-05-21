@@ -21,6 +21,7 @@ class TDWDataset(Dataset):
         state_len,
         train=True,
         debug=False,
+        subsample_factor=6,
         ):
         assert isinstance(data_root, list)
         self.imsize = imsize
@@ -29,6 +30,7 @@ class TDWDataset(Dataset):
         assert self.seq_len > self.state_len, 'Sequence length {} must be greater than state length {}'.format(self.seq_len, self.state_len)
         self.train = train
         self.debug = debug
+        self.subsample_factor = subsample_factor
 
         self.hdf5_files = []
         for path in data_root:
@@ -59,22 +61,19 @@ class TDWDataset(Dataset):
         images = torch.from_numpy(np.array(images))
         labels = torch.from_numpy(np.array(labels))
 
-        subsample_factor = 3 # subsample images by 3x - 30fps => 10 fps TODO: make param
-        images = images[::subsample_factor]
+        images = images[::self.subsample_factor]
         images = images.float().permute(0, 3, 1, 2) # (T, 3, D, D)
         images = torch.nn.functional.interpolate(images, size=self.imsize)
 
-        labels = labels[::subsample_factor]
+        labels = labels[::self.subsample_factor]
         labels = torch.unsqueeze(labels, -1)
 
         assert images.shape[0] >= self.seq_len, 'Images must be at least len {}, but are shape {}'.format(self.seq_len, images.shape)
         if self.train: # randomly sample sequence of seq_len
             start_idx = torch.randint(0, images.shape[0]-self.seq_len+1, (1,))[0]
             images = images[start_idx:start_idx+self.seq_len]
-            labels = labels[start_idx:start_idx+self.seq_len]
         else: # get first seq_len # of frames
             images = images[:self.seq_len]
-            labels = labels[:self.seq_len]
         # print(len(labels.numpy()), np.sum(labels.numpy()))
 
         sample = {
