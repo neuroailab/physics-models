@@ -5,7 +5,7 @@ from yacs.config import CfgNode as CN
 _C = CN()
 
 # Train
-_C.EPOCHS = 10
+_C.EPOCHS = 20
 _C.BATCH_SIZE = 64
 _C.LR = 1e-3
 
