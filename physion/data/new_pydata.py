@@ -37,7 +37,7 @@ class TDWDataset(Dataset):
             assert '*.hdf5' in path
             files = sorted(glob.glob(path))
             self.hdf5_files.extend(files)
-        self.N = len(self.hdf5_files)
+        self.N = 100 if debug else len(self.hdf5_files)
         logging.info('Dataset len: {}'.format(self.N))
 
     def __len__(self):
