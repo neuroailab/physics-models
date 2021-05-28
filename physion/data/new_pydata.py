@@ -58,6 +58,7 @@ class TDWDataset(Dataset):
                 images.append(img)
                 lbl = f['frames'][frame]['labels']['target_contacting_zone'][()]
                 labels.append(lbl)
+            stimulus_name = f['static']['stimulus_name'][()]
         images = torch.from_numpy(np.array(images))
         labels = np.ones_like(labels) if np.any(labels) else np.zeros_like(labels) # Get single label over whole sequence
         labels = torch.from_numpy(np.array(labels))
@@ -81,6 +82,7 @@ class TDWDataset(Dataset):
         sample = {
             'images': images,
             'binary_labels': labels,
+            'stimulus_name': stimulus_name,
         }
         # TODO: add human_prob
         return sample
