@@ -121,11 +121,13 @@ def test(config):
             encoded_states = torch.stack(encoded_states, axis=1).cpu().numpy() # TODO: cpu vs detach?
             rollout_states = torch.stack(rollout_states, axis=1).cpu().numpy()
             labels = data['binary_labels'].cpu().numpy()
+            stimulus_name = data['stimulus_name']
             print(encoded_states.shape, rollout_states.shape, labels.shape)
             extracted_feats.append({
                 'encoded_states': encoded_states,
                 'rollout_states': rollout_states,
                 'binary_labels': labels,
+                'stimulus_name': stimulus_name,
             })
 
     pickle.dump(extracted_feats, open(config['feature_file'], 'wb')) 
