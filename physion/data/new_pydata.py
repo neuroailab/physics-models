@@ -36,7 +36,9 @@ class TDWDataset(Dataset):
         for path in data_root:
             assert '*.hdf5' in path
             files = sorted(glob.glob(path))
+            files = [fn for fn in files if 'tfrecords' not in fn]
             self.hdf5_files.extend(files)
+            logging.info('Processed {} with {} files'.format(path, len(files)))
         self.N = 100 if debug else len(self.hdf5_files)
         logging.info('Dataset len: {}'.format(self.N))
 
