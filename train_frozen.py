@@ -32,7 +32,7 @@ def run(args):
     cfg.freeze() 
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    encoder = 'deit'
+    encoder = 'clip'
     dynamics = 'mlp'
     model = modules.FrozenPhysion(encoder, dynamics).to(device)
     print(model)

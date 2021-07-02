@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
+import clip
 import pdb
 
 # ---Encoders---
@@ -32,6 +33,18 @@ class VGG16_pretrained(nn.Module):
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         x = normalize(x)
         return self.vgg(x)
+
+class CLIP_pretrained(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.clip, _ = clip.load("ViT-B/32", jit=False)
+        self.clip_vision = self.clip.encode_image
+        self.latent_dim = self.clip.ln_final.normalized_shape[0] # 512
+
+    def forward(self, x):
+        normalize = transforms.Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))
+        x = normalize(x)
+        return self.clip_vision(x).type(torch.float32)
 
 # ---Dynamics---
 # Given a sequence of latent representations, generates the next latent
@@ -114,6 +127,8 @@ def _get_encoder(encoder):
         return VGG16_pretrained
     elif encoder == 'deit':
         return DEIT_pretrained
+    elif encoder == 'clip':
+        return CLIP_pretrained
     else:
         raise NotImplementedError
 
