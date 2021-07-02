@@ -142,6 +142,7 @@ class Objective(PhysOptObjective):
             output_dir,
             extract_feat,
             debug,
+            max_run_time,
             encoder,
             dynamics,
             ):
