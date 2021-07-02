@@ -213,3 +213,15 @@ class DEITFrozenMLPObjective(Objective):
 class DEITFrozenLSTMObjective(Objective):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, encoder='deit', dynamics='lstm')
+
+class CLIPFrozenIDObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='clip', dynamics='id')
+
+class CLIPFrozenMLPObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='clip', dynamics='mlp')
+
+class CLIPFrozenLSTMObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='clip', dynamics='lstm')
