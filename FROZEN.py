@@ -226,3 +226,15 @@ class CLIPFrozenMLPObjective(Objective):
 class CLIPFrozenLSTMObjective(Objective):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, encoder='clip', dynamics='lstm')
+
+class DINOFrozenIDObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='dino', dynamics='id')
+
+class DINOFrozenMLPObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='dino', dynamics='mlp')
+
+class DINOFrozenLSTMObjective(Objective):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encoder='dino', dynamics='lstm')

@@ -46,6 +46,17 @@ class CLIP_pretrained(nn.Module):
         x = normalize(x)
         return self.clip_vision(x).type(torch.float32)
 
+class DINO_pretrained(nn.Module):
+    def __init__(self, variant='dino_vits16'):
+        super().__init__()
+        self.dino = torch.hub.load('facebookresearch/dino:main', variant)
+        self.latent_dim = self.dino.norm.normalized_shape[0] # 384 for vits16
+
+    def forward(self, x):
+        normalize = transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.228, 0.224, 0.225))
+        x = normalize(x)
+        return self.dino(x)
+
 # ---Dynamics---
 # Given a sequence of latent representations, generates the next latent
 class ID(nn.Module):
@@ -129,6 +140,8 @@ def _get_encoder(encoder):
         return DEIT_pretrained
     elif encoder == 'clip':
         return CLIP_pretrained
+    elif encoder == 'dino':
+        return DINO_pretrained
     else:
         raise NotImplementedError
 

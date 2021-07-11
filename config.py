@@ -6,7 +6,7 @@ _C = CN()
 
 # Train
 _C.EPOCHS = 20
-_C.BATCH_SIZE = 64
+_C.BATCH_SIZE = 16
 _C.LR = 1e-3
 
 # Model
