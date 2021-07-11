@@ -39,7 +39,7 @@ class TDWDataset(Dataset):
             files = [fn for fn in files if 'tfrecords' not in fn]
             self.hdf5_files.extend(files)
             logging.info('Processed {} with {} files'.format(path, len(files)))
-        self.N = 100 if debug else len(self.hdf5_files)
+        self.N = min(100, len(self.hdf5_files)) if debug else len(self.hdf5_files)
         logging.info('Dataset len: {}'.format(self.N))
 
     def __len__(self):
