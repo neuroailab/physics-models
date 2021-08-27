@@ -9,9 +9,8 @@ from hyperopt import STATUS_OK
 from physopt.utils import PhysOptObjective
 import physion.modules.frozen as modules
 from physopt.models.physion.config import get_frozen_physion_cfg
-from physion.data.pydata import TDWDataset, TDWHumanDataset # TODO
-from physion.data.new_pydata import TDWDataset as NewTDWDataset # TODO
-from physion.data.config import get_data_cfg # TODO
+from physopt.models.new_pydata import TDWDataset
+from physopt.models.config import get_data_cfg 
 from physion.utils import init_seed, get_subsets_from_datasets
 from torch.utils.data import DataLoader
 import torch
@@ -21,14 +20,6 @@ import tensorflow as tf
 
 def get_model(encoder, dynamics):
     return modules.FrozenPhysion(encoder, dynamics)
-
-def get_dataset(dataset, human=False):
-    if dataset == 'new':
-        return NewTDWDataset
-    elif human:
-        return TDWHumanDataset
-    else:
-        return TDWDataset
 
 def train(config):
     device = config['device']
@@ -44,8 +35,7 @@ def train(config):
     criterion = nn.MSELoss()
     optimizer = optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
 
-    Dataset = get_dataset(config['dataset'])
-    dataset = Dataset(
+    dataset = TDWDataset(
         data_root=config['datapaths'],
         imsize=config['imsize'],
         seq_len=config['seq_len'],
@@ -92,8 +82,7 @@ def test(config):
     model.load_state_dict(torch.load(config['model_file'])) # load weights
     model.eval() # set to eval mode
 
-    Dataset = get_dataset(config['dataset'], 'human' in config['name'])
-    dataset = Dataset(
+    dataset = TDWDataset(
         data_root=config['datapaths'],
         imsize=config['imsize'],
         seq_len=config['seq_len'],
