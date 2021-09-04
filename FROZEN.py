@@ -9,7 +9,7 @@ from hyperopt import STATUS_OK
 from physopt.utils import PhysOptObjective
 import physion.modules.frozen as modules
 from physopt.models.physion.config import get_frozen_physion_cfg
-from physopt.models.new_pydata import TDWDataset
+from physopt.models.pydata import TDWDataset
 from physopt.models.config import get_data_cfg 
 from physion.utils import init_seed, get_subsets_from_datasets
 from torch.utils.data import DataLoader
