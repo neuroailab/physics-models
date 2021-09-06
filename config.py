@@ -7,7 +7,6 @@ _C = CN()
 # Train
 _C.EPOCHS = 20
 _C.BATCH_SIZE = 16
-_C.LR = 1e-3
 
 # Model
 _C.STATE_LEN = 7 # number of images as input
