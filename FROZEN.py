@@ -33,6 +33,7 @@ class Objective(PhysOptObjective):
         self.encoder = encoder
         self.dynamics = dynamics
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.experiment_name = '{}Frozen{}'.format(encoder, dynamics) # mlflow experiment name tied to the Objective class TODO: or maybe just have everything in one experiment, and only use run_name
 
     def __call__(self, *args, **kwargs):
         results = super().__call__()
@@ -65,7 +66,8 @@ class Objective(PhysOptObjective):
         return results
 
     def train(self, config):
-        mlflow.start_run()
+        mlflow.set_experiment(self.experiment_name)
+        mlflow.start_run(run_name=self.exp_key)
 
         model = self.get_model()
         model = self.load_model(model)
@@ -89,7 +91,8 @@ class Objective(PhysOptObjective):
         mlflow.end_run()
 
     def test(self, config):
-        mlflow.start_run()
+        mlflow.set_experiment(self.experiment_name)
+        mlflow.start_run(run_name=self.exp_key)
 
         model = self.get_model()
         assert os.path.isfile(self.model_file), 'No model ckpt found, cannot extract features'
@@ -120,7 +123,7 @@ class Objective(PhysOptObjective):
 
     def get_model(self):
         model =  modules.FrozenPhysion(self.encoder, self.dynamics).to(self.device)
-        # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet
+        # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
         return model
 
     def load_model(self, model):
