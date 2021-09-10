@@ -43,67 +43,65 @@ class Objective(PhysOptObjective):
             dynamics,
             ):
         super().__init__(exp_key, seed, train_data, feat_data, output_dir, extract_feat, debug)
-        self.encoder = encoder
-        self.dynamics = dynamics
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.experiment_name = '{}Frozen{}'.format(encoder, dynamics) # mlflow experiment name tied to the Objective class TODO: or maybe just have everything in one experiment, and only use run_name
         self.init_seed()
 
-    def __call__(self, *args, **kwargs):
-        results = super().__call__()
-        results['encoder'] = self.encoder
-        results['dynamics'] = self.dynamics
-        return results
+        self.model = self.get_model(encoder, dynamics)
+        self.model = self.load_model()
 
-    def train(self):
+    def dynamics(self):
         mlflow.set_experiment(self.experiment_name)
         mlflow.start_run(run_name=self.exp_key)
 
-        model = self.get_model()
-        model = self.load_model(model)
-
-        trainloader = self.get_dataloader(train=True)
+        trainloader = self.get_dataloader(self.dynamics_data['train'], train=True)
         best_loss = 1e9
         for epoch in range(NUM_EPOCHS): 
             logging.info('Starting epoch {}/{}'.format(epoch+1, NUM_EPOCHS))
             running_loss = 0.
             for i, data in enumerate(trainloader):
-                loss = self.train_step(data, model)
+                loss = self.train_step(data)
                 running_loss += loss
                 avg_loss = running_loss/(i+1)
                 print(avg_loss)
             mlflow.log_metric(key='avg_loss', value=avg_loss, step=epoch)
+            # TODO: add validation
 
         if avg_loss < best_loss:
             best_loss = avg_loss
             logging.info('Saving model with loss {} at epoch {}'.format(best_loss, epoch))
-            self.save_model(model)
+            self.save_model()
         mlflow.end_run()
 
-    def test(self):
+    def readout(self):
         mlflow.set_experiment(self.experiment_name)
         mlflow.start_run(run_name=self.exp_key)
 
-        model = self.get_model()
         assert os.path.isfile(self.model_file), 'No model ckpt found, cannot extract features'
-        model = self.load_model(model)
-        model.eval() # set to eval mode
+        self.model.eval() # set to eval mode
 
-        testloader = self.get_dataloader(train=False)
-        extracted_feats = []
-        for i, data in enumerate(testloader):
-            output = self.test_step(data, model)
-            extracted_feats.append(output)
+        trainloader = self.get_dataloader(self.readout_data['train'], train=False)
+        self.extract_feats(trainloader, self.train_feature_file)
+        testloader = self.get_dataloader(self.readout_data['test'], train=False)
+        self.extract_feats(testloader, self.test_feature_file)
 
-        pickle.dump(extracted_feats, open(self.feature_file, 'wb')) 
-        print('Saved features to {}'.format(self.feature_file))
+        self.compute_metrics()
+
         mlflow.end_run()
+    
+    def extract_feats(self, dataloader, feature_file):
+        extracted_feats = []
+        for i, data in enumerate(dataloader):
+            output = self.test_step(data)
+            extracted_feats.append(output)
+        pickle.dump(extracted_feats, open(feature_file, 'wb')) 
+        print('Saved features to {}'.format(feature_file))
 
-    def get_dataloader(self, train=True):
+    def get_dataloader(self, datapaths, train=True):
         cfg = get_frozen_physion_cfg(debug=self.debug)
         cfg.freeze()
         dataset = TDWDataset(
-            data_root=self.datapaths,
+            data_root=datapaths,
             imsize=cfg.IMSIZE,
             seq_len=cfg.SEQ_LEN,
             state_len=cfg.STATE_LEN,
@@ -113,49 +111,49 @@ class Objective(PhysOptObjective):
         dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=train)
         return dataloader
 
-    def get_model(self):
-        model =  modules.FrozenPhysion(self.encoder, self.dynamics).to(self.device)
+    def get_model(self, encoder, dynamics):
+        model =  modules.FrozenPhysion(encoder, dynamics).to(self.device)
         # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
         return model
 
-    def load_model(self, model):
+    def load_model(self):
         if os.path.isfile(self.model_file): # load existing model ckpt TODO: add option to disable reloading
-            model.load_state_dict(torch.load(self.model_file))
+            self.model.load_state_dict(torch.load(self.model_file))
             logging.info('Loaded existing ckpt')
         else:
             torch.save(model.state_dict(), self.model_file) # save initial model
             logging.info('Training from scratch')
-        return model
+        return self.model
 
-    def save_model(self, model):
-        torch.save(model.state_dict(), self.model_file)
+    def save_model(self):
+        torch.save(self.model.state_dict(), self.model_file)
         logging.info('Saved model checkpoint to: {}'.format(self.model_file))
 
-    def train_step(self, data, model):
+    def train_step(self, data):
         inputs = data['input_images'].to(self.device)
-        labels = model.get_encoder_feats(data['label_image'].to(self.device))
+        labels = self.model.get_encoder_feats(data['label_image'].to(self.device))
         criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9) # TODO: add these to cfg
+        optimizer = torch.optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9) # TODO: add these to cfg
         optimizer.zero_grad()
 
-        outputs = model(inputs)
+        outputs = self.model(inputs)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
 
         return loss.item()
 
-    def test_step(self, data, model):
+    def test_step(self, data):
         with torch.no_grad():
             images = data['images'].to(self.device)
             state_len = data['input_images'].shape[1] # TODO: hacky
-            encoded_states = model.get_encoder_feats(images)
+            encoded_states = self.model.get_encoder_feats(images)
             rollout_states = encoded_states[:state_len] # copy over feats for seed frames
             rollout_steps = images.shape[1] - state_len 
 
             for step in range(rollout_steps):
                 input_feats = rollout_states[-state_len:]
-                pred_state  = model.dynamics(input_feats) # dynamics model predicts next latent from past latents
+                pred_state  = self.model.dynamics(input_feats) # dynamics model predicts next latent from past latents
                 rollout_states.append(pred_state)
 
         encoded_states = torch.stack(encoded_states, axis=1).cpu().numpy() # TODO: cpu vs detach?
