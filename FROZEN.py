@@ -31,20 +31,21 @@ class Objective(PytorchPhysOptObjective):
             extract_feat,
             debug,
             max_run_time,
-            encoder,
-            dynamics,
             ):
         super().__init__(exp_key, seed, train_data, feat_data, output_dir, extract_feat, debug)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.init_seed()
 
-        model_cfg = {'encoder': encoder, 'dynamics': dynamics} # TODO
-        self.model = self.get_model(model_cfg)
+        self.model = self.get_model()
         self.model = self.load_model()
 
-    def get_dataloader(self, datapaths, train=True):
+    def get_config(self):
         cfg = get_frozen_physion_cfg(debug=self.debug)
         cfg.freeze()
+        return cfg
+
+    def get_dataloader(self, datapaths, train=True):
+        cfg = self.cfg
         dataset = TDWDataset(
             data_root=datapaths,
             imsize=cfg.IMSIZE,
@@ -55,11 +56,6 @@ class Objective(PytorchPhysOptObjective):
             )
         dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=train)
         return dataloader
-
-    def get_model(self, model_cfg):
-        model =  modules.FrozenPhysion(model_cfg['encoder'], model_cfg['dynamics']).to(self.device)
-        # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
-        return model
 
     def train_step(self, data):
         self.model.train() # set to train mode
@@ -103,50 +99,55 @@ class Objective(PytorchPhysOptObjective):
             }
         return output
 
+def get_frozen_model(encoder, dynamics):
+    model =  modules.FrozenPhysion(encoder, dynamics)
+    # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
+    return model
+
 class VGGFrozenIDObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='vgg', dynamics='id')
+    def get_model(self):
+        return get_frozen_model('vgg', 'id').to(self.device)
 
 class VGGFrozenMLPObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='vgg', dynamics='mlp')
+    def get_model(self):
+        return get_frozen_model('vgg', 'mlp').to(self.device)
 
 class VGGFrozenLSTMObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='vgg', dynamics='lstm')
+    def get_model(self):
+        return get_frozen_model('vgg', 'lstm').to(self.device)
 
 class DEITFrozenIDObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='deit', dynamics='id')
+    def get_model(self):
+        return get_frozen_model('deit', 'id').to(self.device)
 
 class DEITFrozenMLPObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='deit', dynamics='mlp')
+    def get_model(self):
+        return get_frozen_model('deit', 'mlp').to(self.device)
 
 class DEITFrozenLSTMObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='deit', dynamics='lstm')
+    def get_model(self):
+        return get_frozen_model('deit', 'lstm').to(self.device)
 
 class CLIPFrozenIDObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='clip', dynamics='id')
+    def get_model(self):
+        return get_frozen_model('clip', 'id').to(self.device)
 
 class CLIPFrozenMLPObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='clip', dynamics='mlp')
+    def get_model(self):
+        return get_frozen_model('clip', 'mlp').to(self.device)
 
 class CLIPFrozenLSTMObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='clip', dynamics='lstm')
+    def get_model(self):
+        return get_frozen_model('clip', 'lstm').to(self.device)
 
 class DINOFrozenIDObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='dino', dynamics='id')
+    def get_model(self):
+        return get_frozen_model('dino', 'id').to(self.device)
 
 class DINOFrozenMLPObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='dino', dynamics='mlp')
+    def get_model(self):
+        return get_frozen_model('dino', 'mlp').to(self.device)
 
 class DINOFrozenLSTMObjective(Objective):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, encoder='dino', dynamics='lstm')
+    def get_model(self):
+        return get_frozen_model('dino', 'lstm').to(self.device)
