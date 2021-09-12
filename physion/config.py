@@ -13,8 +13,6 @@ _C.STATE_LEN = 7 # number of images as input
 _C.SEQ_LEN = 25
 _C.IMSIZE = 224
 
-def get_frozen_physion_cfg(debug=False):
+def get_frozen_physion_cfg():
     C =  _C.clone()
-    if debug:
-        C.EPOCHS = 1
     return C

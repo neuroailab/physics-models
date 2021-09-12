@@ -1,5 +1,3 @@
-import numpy as np
-
 import torch
 from torch.utils.data import DataLoader
 
@@ -22,25 +20,10 @@ class TDWDataset(TDWDatasetBase): # TODO: move to physion.utils
         return sample
 
 class Objective(PytorchPhysOptObjective):
-    def __init__(self,
-            exp_key,
-            seed,
-            train_data,
-            feat_data,
-            output_dir,
-            extract_feat,
-            debug,
-            max_run_time,
-            ):
-        super().__init__(exp_key, seed, train_data, feat_data, output_dir, extract_feat, debug)
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.init_seed()
-
-        self.model = self.get_model()
-        self.model = self.load_model()
-
     def get_config(self):
-        cfg = get_frozen_physion_cfg(debug=self.debug)
+        cfg = get_frozen_physion_cfg()
+        if self.debug:
+            cfg.EPOCHS = 1
         cfg.freeze()
         return cfg
 
@@ -51,8 +34,9 @@ class Objective(PytorchPhysOptObjective):
             imsize=cfg.IMSIZE,
             seq_len=cfg.SEQ_LEN,
             state_len=cfg.STATE_LEN,
-            debug=self.debug,
             train=train,
+            debug=self.debug,
+            subsample_factor=cfg.SUBSAMPLE_FACTOR
             )
         dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=train)
         return dataloader
