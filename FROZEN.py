@@ -28,14 +28,14 @@ class Objective(PytorchPhysOptObjective):
         cfg.freeze()
         return cfg
 
-    def get_dataloader(self, datapaths, train, shuffle):
+    def get_dataloader(self, datapaths, phase, shuffle, **kwargs):
         cfg = self.cfg
         dataset = TDWDataset(
             data_root=datapaths,
             imsize=cfg.IMSIZE,
             seq_len=cfg.SEQ_LEN,
             state_len=cfg.STATE_LEN,
-            train=train,
+            random_seq=True if phase=='dynamics' else False,
             debug=self.debug,
             subsample_factor=cfg.SUBSAMPLE_FACTOR
             )
