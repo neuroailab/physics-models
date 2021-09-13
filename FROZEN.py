@@ -28,7 +28,7 @@ class Objective(PytorchPhysOptObjective):
         cfg.freeze()
         return cfg
 
-    def get_dataloader(self, datapaths, train=True):
+    def get_dataloader(self, datapaths, train, shuffle):
         cfg = self.cfg
         dataset = TDWDataset(
             data_root=datapaths,
@@ -39,7 +39,7 @@ class Objective(PytorchPhysOptObjective):
             debug=self.debug,
             subsample_factor=cfg.SUBSAMPLE_FACTOR
             )
-        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=train)
+        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle)
         return dataloader
 
     def train_step(self, data):
@@ -105,50 +105,50 @@ def get_frozen_model(encoder, dynamics):
     # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
     return model
 
-class VGGFrozenIDObjective(Objective):
+class pVGG_IDObjective(Objective):
     def get_model(self):
         return get_frozen_model('vgg', 'id').to(self.device)
 
-class VGGFrozenMLPObjective(Objective):
+class pVGG_MLPObjective(Objective):
     def get_model(self):
         return get_frozen_model('vgg', 'mlp').to(self.device)
 
-class VGGFrozenLSTMObjective(Objective):
+class pVGG_LSTMObjective(Objective):
     def get_model(self):
         return get_frozen_model('vgg', 'lstm').to(self.device)
 
-class DEITFrozenIDObjective(Objective):
+class pDEIT_IDObjective(Objective):
     def get_model(self):
         return get_frozen_model('deit', 'id').to(self.device)
 
-class DEITFrozenMLPObjective(Objective):
+class pDEIT_MLPObjective(Objective):
     def get_model(self):
         return get_frozen_model('deit', 'mlp').to(self.device)
 
-class DEITFrozenLSTMObjective(Objective):
+class pDEIT_LSTMObjective(Objective):
     def get_model(self):
         return get_frozen_model('deit', 'lstm').to(self.device)
 
-class CLIPFrozenIDObjective(Objective):
+class pCLIP_IDObjective(Objective):
     def get_model(self):
         return get_frozen_model('clip', 'id').to(self.device)
 
-class CLIPFrozenMLPObjective(Objective):
+class pCLIP_MLPObjective(Objective):
     def get_model(self):
         return get_frozen_model('clip', 'mlp').to(self.device)
 
-class CLIPFrozenLSTMObjective(Objective):
+class pCLIP_LSTMObjective(Objective):
     def get_model(self):
         return get_frozen_model('clip', 'lstm').to(self.device)
 
-class DINOFrozenIDObjective(Objective):
+class pDINO_IDObjective(Objective):
     def get_model(self):
         return get_frozen_model('dino', 'id').to(self.device)
 
-class DINOFrozenMLPObjective(Objective):
+class pDINO_MLPObjective(Objective):
     def get_model(self):
         return get_frozen_model('dino', 'mlp').to(self.device)
 
-class DINOFrozenLSTMObjective(Objective):
+class pDINO_LSTMObjective(Objective):
     def get_model(self):
         return get_frozen_model('dino', 'lstm').to(self.device)
