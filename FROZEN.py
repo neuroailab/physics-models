@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
@@ -56,31 +57,38 @@ class Objective(PytorchPhysOptObjective):
 
         return loss.item()
 
-    def test_step(self, data):
+    def extract_feat_step(self, data):
         self.model.eval() # set to eval mode
-        with torch.no_grad():
-            images = data['images'].to(self.device)
-            state_len = data['input_images'].shape[1] # TODO: hacky
-            encoded_states = self.model.get_encoder_feats(images)
-            rollout_states = encoded_states[:state_len] # copy over feats for seed frames
-            rollout_steps = images.shape[1] - state_len 
+        with torch.no_grad(): # TODO: could use a little cleanup
+            state_len = data['input_images'].shape[1]
+            input_states = self.model.get_encoder_feats(data['input_images'].to(self.device))
+            images = data['images'][:, state_len:].to(self.device)
+            observed_states = self.model.get_encoder_feats(images)
+            rollout_steps = images.shape[1]
 
+            simulated_states = []
+            prev_states = input_states
             for step in range(rollout_steps):
-                input_feats = rollout_states[-state_len:]
-                pred_state  = self.model.dynamics(input_feats) # dynamics model predicts next latent from past latents
-                rollout_states.append(pred_state)
+                pred_state  = self.model.dynamics(prev_states) # dynamics model predicts next latent from past latents
+                simulated_states.append(pred_state)
+                # add most recent pred and delete oldest
+                prev_states.append(pred_state)
+                prev_states.pop(0)
 
-        encoded_states = torch.stack(encoded_states, axis=1).cpu().numpy() # TODO: cpu vs detach?
-        rollout_states = torch.stack(rollout_states, axis=1).cpu().numpy()
+        input_states = torch.stack(input_states, axis=1).cpu().numpy()
+        observed_states = torch.stack(observed_states, axis=1).cpu().numpy() # TODO: cpu vs detach?
+        simulated_states = torch.stack(simulated_states, axis=1).cpu().numpy()
         labels = data['binary_labels'].cpu().numpy()
-        stimulus_name = data['stimulus_name']
-        print(encoded_states.shape, rollout_states.shape, labels.shape)
+        stimulus_name = np.array(data['stimulus_name'], dtype=object)
         output = {
-            'encoded_states': encoded_states,
-            'rollout_states': rollout_states,
-            'binary_labels': labels,
+            'input_states': input_states,
+            'observed_states': observed_states,
+            'simulated_states': simulated_states,
+            'labels': labels,
             'stimulus_name': stimulus_name,
             }
+        for k,v in output.items():
+            print(k, v.shape)
         return output
 
 def get_frozen_model(encoder, dynamics):
