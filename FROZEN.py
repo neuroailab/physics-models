@@ -57,6 +57,15 @@ class Objective(PytorchPhysOptObjective):
 
         return loss.item()
 
+    def val_step(self, data): # TODO: reduce duplication with train_step
+        self.model.eval() # set to eval mode
+        inputs = data['input_images'].to(self.device)
+        labels = self.model.get_encoder_feats(data['label_image'].to(self.device))
+        outputs = self.model(inputs)
+        criterion = torch.nn.MSELoss()
+        loss = criterion(outputs, labels)
+        return loss.item()
+
     def extract_feat_step(self, data):
         self.model.eval() # set to eval mode
         with torch.no_grad(): # TODO: could use a little cleanup
