@@ -22,9 +22,11 @@ class TDWDataset(TDWDatasetBase): # TODO: move to physion.utils
 
 class Objective(PytorchPhysOptObjective):
     def get_config(self):
-        cfg = get_frozen_physion_cfg()
+        cfg = super().get_config()
+        cfg.defrost()
+        cfg.merge_from_other_cfg(get_frozen_physion_cfg())
         if self.debug:
-            cfg.EPOCHS = 1
+            cfg.merge_from_list(['TRAIN.EPOCHS', 1])
         cfg.freeze()
         return cfg
 
@@ -32,14 +34,14 @@ class Objective(PytorchPhysOptObjective):
         cfg = self.cfg
         dataset = TDWDataset(
             data_root=datapaths,
-            imsize=cfg.IMSIZE,
-            seq_len=cfg.SEQ_LEN,
-            state_len=cfg.STATE_LEN,
+            imsize=cfg.DATA.IMSIZE,
+            seq_len=cfg.DATA.SEQ_LEN,
+            state_len=cfg.DATA.STATE_LEN,
             random_seq=True if phase=='dynamics' else False,
             debug=self.debug,
-            subsample_factor=cfg.SUBSAMPLE_FACTOR
+            subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR
             )
-        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle)
+        dataloader = DataLoader(dataset, batch_size=cfg.TRAIN.BATCH_SIZE, shuffle=shuffle)
         return dataloader
 
     def train_step(self, data):
