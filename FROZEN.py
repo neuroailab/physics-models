@@ -25,8 +25,6 @@ class Objective(PytorchPhysOptObjective):
         cfg = super().get_config()
         cfg.defrost()
         cfg.merge_from_other_cfg(get_frozen_physion_cfg())
-        if self.debug:
-            cfg.merge_from_list(['EPOCHS', 1])
         cfg.freeze()
         return cfg
 
@@ -66,7 +64,7 @@ class Objective(PytorchPhysOptObjective):
         outputs = self.model(inputs)
         criterion = torch.nn.MSELoss()
         loss = criterion(outputs, labels)
-        return loss.item()
+        return {'val_loss': loss.item()}
 
     def extract_feat_step(self, data):
         self.model.eval() # set to eval mode
