@@ -26,7 +26,7 @@ class Objective(PytorchPhysOptObjective):
         cfg.defrost()
         cfg.merge_from_other_cfg(get_frozen_physion_cfg())
         if self.debug:
-            cfg.merge_from_list(['TRAIN.EPOCHS', 1])
+            cfg.merge_from_list(['EPOCHS', 1])
         cfg.freeze()
         return cfg
 
@@ -41,7 +41,7 @@ class Objective(PytorchPhysOptObjective):
             debug=self.debug,
             subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR
             )
-        dataloader = DataLoader(dataset, batch_size=cfg.TRAIN.BATCH_SIZE, shuffle=shuffle)
+        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle)
         return dataloader
 
     def train_step(self, data):

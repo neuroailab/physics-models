@@ -4,10 +4,8 @@ from yacs.config import CfgNode as CN
 
 _C = CN()
 
-# Train
-_C.TRAIN = CN()
-_C.TRAIN.EPOCHS = 20
-_C.TRAIN.BATCH_SIZE = 16
+_C.EPOCHS = 20
+_C.BATCH_SIZE = 16
 
 _C.DATA = CN()
 _C.DATA.STATE_LEN = 7 # number of images as input
