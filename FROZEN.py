@@ -98,8 +98,6 @@ class Objective(PytorchPhysOptObjective):
             'labels': labels,
             'stimulus_name': stimulus_name,
             }
-        for k,v in output.items():
-            print(k, v.shape)
         return output
 
 def get_frozen_model(encoder, dynamics):
