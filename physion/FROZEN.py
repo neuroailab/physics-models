@@ -2,8 +2,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from physopt.utils import PytorchPhysOptObjective
-from physopt.models.pydata import TDWDataset as TDWDatasetBase
+from physion.utils import PytorchPhysOptObjective
+from physion.data.pydata import TDWDataset as TDWDatasetBase
 
 import physion.modules.frozen as modules
 from physion.config import get_frozen_physion_cfg
