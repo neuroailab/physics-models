@@ -37,7 +37,7 @@ class Objective(PytorchPhysOptObjective):
             imsize=cfg.DATA.IMSIZE,
             seq_len=cfg.DATA.SEQ_LEN,
             state_len=cfg.DATA.STATE_LEN,
-            random_seq=True if phase=='dynamics' else False,
+            random_seq=True if phase=='pretraining' else False,
             debug=self.debug,
             subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR
             )
