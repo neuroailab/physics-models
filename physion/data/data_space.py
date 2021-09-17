@@ -1,5 +1,5 @@
 import os
-from physopt.data.config import get_cfg_defaults
+from physion.data.config import get_cfg_defaults
 
 def build_paths(name, scenarios, filepattern, traindir, testdir):
     return {
@@ -8,7 +8,7 @@ def build_paths(name, scenarios, filepattern, traindir, testdir):
         'test': [os.path.join(testdir, scenario, filepattern) for scenario in scenarios],
         } 
 
-def get_data_space(cfg_file):
+def get_data_spaces(cfg_file):
     cfg = get_cfg_defaults()
     if not os.path.isabs(cfg_file): # if not absolute path, looks in this file's dir (i.e. `physion/data/`)
         dirname =  os.path.dirname(__file__)
