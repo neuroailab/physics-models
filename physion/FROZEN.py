@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from physion.utils import PytorchPhysOptObjective
 from physion.data.pydata import TDWDataset as TDWDatasetBase
 
-import physion.modules.frozen as modules
+import physion.models.frozen as models
 from physion.config import get_frozen_physion_cfg
 
 class TDWDataset(TDWDatasetBase): # TODO: move to physion.utils
@@ -101,7 +101,7 @@ class Objective(PytorchPhysOptObjective):
         return output
 
 def get_frozen_model(encoder, dynamics):
-    model =  modules.FrozenPhysion(encoder, dynamics)
+    model =  models.FrozenPhysion(encoder, dynamics)
     # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
     return model
 
