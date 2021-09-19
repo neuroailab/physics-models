@@ -106,49 +106,61 @@ def get_frozen_model(encoder, dynamics):
     return model
 
 class pVGG_IDObjective(Objective):
+    model_name = 'pVGG_ID'
     def get_model(self):
         return get_frozen_model('vgg', 'id').to(self.device)
 
 class pVGG_MLPObjective(Objective):
+    model_name = 'pVGG_MLP'
     def get_model(self):
         return get_frozen_model('vgg', 'mlp').to(self.device)
 
 class pVGG_LSTMObjective(Objective):
+    model_name = 'pVGG_LSTM'
     def get_model(self):
         return get_frozen_model('vgg', 'lstm').to(self.device)
 
 class pDEIT_IDObjective(Objective):
+    model_name = 'pDEIT_ID'
     def get_model(self):
         return get_frozen_model('deit', 'id').to(self.device)
 
 class pDEIT_MLPObjective(Objective):
+    model_name = 'pDEIT_MLP'
     def get_model(self):
         return get_frozen_model('deit', 'mlp').to(self.device)
 
 class pDEIT_LSTMObjective(Objective):
+    model_name = 'pDEIT_LSTM'
     def get_model(self):
         return get_frozen_model('deit', 'lstm').to(self.device)
 
 class pCLIP_IDObjective(Objective):
+    model_name = 'pCLIP_ID'
     def get_model(self):
         return get_frozen_model('clip', 'id').to(self.device)
 
 class pCLIP_MLPObjective(Objective):
+    model_name = 'pCLIP_MLP'
     def get_model(self):
         return get_frozen_model('clip', 'mlp').to(self.device)
 
 class pCLIP_LSTMObjective(Objective):
+    model_name = 'pCLIP_LSTM'
     def get_model(self):
         return get_frozen_model('clip', 'lstm').to(self.device)
 
 class pDINO_IDObjective(Objective):
+    model_name = 'pDINO_ID'
     def get_model(self):
         return get_frozen_model('dino', 'id').to(self.device)
 
 class pDINO_MLPObjective(Objective):
+    model_name = 'pDINO_MLP'
     def get_model(self):
         return get_frozen_model('dino', 'mlp').to(self.device)
 
 class pDINO_LSTMObjective(Objective):
+    model_name = 'pDINO_LSTM'
     def get_model(self):
         return get_frozen_model('dino', 'lstm').to(self.device)
