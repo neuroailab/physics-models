@@ -1,5 +1,5 @@
-DYNAMICS_TRAIN_DIR: '/data1/eliwang/curiophysion'
-DYNAMICS_TEST_DIR: '/data1/eliwang/curiophysion' # TODO
+PRETRAINING_TRAIN_DIR: '/data1/eliwang/curiophysion'
+PRETRAINING_TEST_DIR: '/data1/eliwang/curiophysion' # TODO
 READOUT_TRAIN_DIR: '/data1/eliwang/curiophysion' # TODO
 READOUT_TEST_DIR: '/data1/eliwang/curiophysion' # TODO
 

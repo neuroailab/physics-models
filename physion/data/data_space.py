@@ -23,7 +23,7 @@ def get_data_spaces(cfg_file):
     for scenario in cfg.SCENARIOS:
         if 'only' in cfg.TRAINING_PROTOCOLS:
             space = {
-                'pretraining': build_paths(scenario, [scenario], cfg.FILE_PATTERN, cfg.DYNAMICS_TRAIN_DIR, cfg.DYNAMICS_TEST_DIR),
+                'pretraining': build_paths(scenario, [scenario], cfg.FILE_PATTERN, cfg.PRETRAINING_TRAIN_DIR, cfg.PRETRAINING_TEST_DIR),
                 'readout': [build_paths(scenario, [scenario], cfg.FILE_PATTERN, cfg.READOUT_TRAIN_DIR, cfg.READOUT_TEST_DIR)],
                 }
             data_spaces.append(space)
@@ -32,7 +32,7 @@ def get_data_spaces(cfg_file):
             assert len(cfg.SCENARIOS) > 1, 'Must have more than one scenario to do all-but-one protocol.'
             abo_scenarios = [s for s in cfg.SCENARIOS if s is not scenario]
             space = {
-                'pretraining': build_paths('no_'+scenario, abo_scenarios, cfg.FILE_PATTERN, cfg.DYNAMICS_TRAIN_DIR, cfg.DYNAMICS_TEST_DIR), # train on all but the scenario
+                'pretraining': build_paths('no_'+scenario, abo_scenarios, cfg.FILE_PATTERN, cfg.PRETRAINING_TRAIN_DIR, cfg.PRETRAINING_TEST_DIR), # train on all but the scenario
                 'readout': [build_paths(scenario, [scenario], cfg.FILE_PATTERN, cfg.READOUT_TRAIN_DIR, cfg.READOUT_TEST_DIR)], # readout on only the single scenario that was left out
                 }
             data_spaces.append(space)
@@ -40,7 +40,7 @@ def get_data_spaces(cfg_file):
     if 'all' in cfg.TRAINING_PROTOCOLS:
         assert len(cfg.SCENARIOS) > 1, 'Must have more than one scenario to do all protocol.'
         space = {
-            'pretraining': build_paths('all', cfg.SCENARIOS, cfg.FILE_PATTERN, cfg.DYNAMICS_TRAIN_DIR, cfg.DYNAMICS_TEST_DIR), # train on all scenarios
+            'pretraining': build_paths('all', cfg.SCENARIOS, cfg.FILE_PATTERN, cfg.PRETRAINING_TRAIN_DIR, cfg.PRETRAINING_TEST_DIR), # train on all scenarios
             'readout': [build_paths(scenario, [scenario], cfg.FILE_PATTERN, cfg.READOUT_TRAIN_DIR, cfg.READOUT_TEST_DIR) for scenario in cfg.SCENARIOS], # readout on each scenario individually
             }
         data_spaces.append(space)
