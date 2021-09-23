@@ -21,12 +21,13 @@ class PytorchPhysOptObjective(PhysOptObjective):
             logging.info('No model found, saved initial model')
         return self.model
 
-    def save_model(self, step):
+    def save_model(self, step=None):
         torch.save(self.model.state_dict(), self.model_file)
         logging.info('Saved model checkpoint to: {}'.format(self.model_file))
-        step_model_file = '_{}.'.format(step).join(self.model_file.split('.')) # create model file with step 
-        torch.save(self.model.state_dict(), step_model_file)
-        mlflow.log_artifact(step_model_file, artifact_path='model_ckpts')
+        if step is not None:
+            step_model_file = '_{}.'.format(step).join(self.model_file.split('.')) # create model file with step 
+            torch.save(self.model.state_dict(), step_model_file)
+            mlflow.log_artifact(step_model_file, artifact_path='model_ckpts')
 
     def init_seed(self):
         np.random.seed(self.seed)
