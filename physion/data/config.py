@@ -15,7 +15,7 @@ _C.READOUT_FILE_PATTERN = None
 _C.READOUT_SCENARIOS = None
 _C.READOUT_PROTOCOL = 'minimal' # {'full'|'minimal'}
 
-_C.SEEDS = 1
+_C.SEEDS = [0]
 
 def get_cfg_defaults():
   return _C.clone()

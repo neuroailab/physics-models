@@ -68,11 +68,6 @@ def get_data_spaces(cfg_file):
             }
         data_spaces.append(space)
 
-    if isinstance(cfg.SEEDS, list):
-        seeds = cfg.SEEDS
-    else:
-        assert isinstance(cfg.SEEDS, int)
-        seeds = list(range(cfg.SEEDS))
-    full_data_spaces = add_seed_to_data_spaces(seeds, data_spaces)
+    full_data_spaces = add_seed_to_data_spaces(cfg.SEEDS, data_spaces)
 
     return full_data_spaces
