@@ -1,7 +1,22 @@
 import os
+import socket
+import yaml
 from physion.data.config import get_cfg_defaults
 
 def build_paths(name, scenarios, filepattern, traindir, testdir):
+    dirname =  os.path.dirname(__file__)
+    hostname = socket.gethostname()
+    basedir_file = os.path.join(dirname, 'basedir.yaml')
+    if os.path.isfile(basedir_file):
+        basedir_dict = yaml.safe_load(open(basedir_file, 'rb'))
+        basedir = basedir_dict.get(hostname)
+    print(hostname, basedir)
+    if basedir is not None:
+        if not os.path.isabs(traindir):
+            traindir = os.path.join(basedir, traindir)
+        if not os.path.isabs(testdir):
+            testdir = os.path.join(basedir, testdir)
+    print(traindir, testdir)
     return {
         'name': name, 
         'train': [os.path.join(traindir, scenario, filepattern) for scenario in scenarios], 
