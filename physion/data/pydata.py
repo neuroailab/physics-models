@@ -53,23 +53,20 @@ class TDWDataset(Dataset):
             # extract images and labels
             images = []
             labels = []
-            for frame in f['frames']:
+            for frame in list(f['frames'])[::self.subsample_factor]:
                 img = f['frames'][frame]['images']['_img'][()]
                 img = np.array(Image.open(io.BytesIO(img))) # (256, 256, 3)
-                img = (img / 255.).astype(np.float32) # convert from [0, 255] to [0, 1]
                 images.append(img)
                 lbl = f['frames'][frame]['labels']['target_contacting_zone'][()]
                 labels.append(lbl)
             stimulus_name = f['static']['stimulus_name'][()]
-        images = torch.from_numpy(np.array(images))
-        labels = np.ones_like(labels) if np.any(labels) else np.zeros_like(labels) # Get single label over whole sequence
-        labels = torch.from_numpy(np.array(labels))
 
-        images = images[::self.subsample_factor]
-        images = images.float().permute(0, 3, 1, 2) # (T, 3, D, D)
+        images = np.array(images, dtype=np.float32) / 255. # convert from [0, 255] to [0, 1]
+        images = torch.from_numpy(images).permute(0, 3, 1, 2) # (T, 3, D, D)
         images = torch.nn.functional.interpolate(images, size=self.imsize)
 
-        labels = labels[::self.subsample_factor]
+        labels = np.ones_like(labels) if np.any(labels) else np.zeros_like(labels) # Get single label over whole sequence
+        labels = torch.from_numpy(np.array(labels))
         labels = torch.unsqueeze(labels, -1)
 
         assert images.shape[0] >= self.seq_len, 'Images must be at least len {}, but are shape {}'.format(self.seq_len, images.shape)
