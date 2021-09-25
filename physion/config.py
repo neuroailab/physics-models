@@ -4,8 +4,7 @@ from yacs.config import CfgNode as CN
 
 _C = CN()
 
-_C.EPOCHS = 20
-_C.BATCH_SIZE = 16
+_C.BATCH_SIZE = 32
 
 _C.DATA = CN()
 _C.DATA.STATE_LEN = 7 # number of images as input
