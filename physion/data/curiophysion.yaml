@@ -3,8 +3,8 @@ PRETRAINING_TEST_DIR: 'curiophysion_test_data'
 PRETRAINING_FILE_PATTERN: '*/*.hdf5'
 # PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting'] 
 # PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring']
-PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring', 'drop_pilotv2_random1']
-# PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring', 'drop_pilotv2_random1', 'drop_pilotv2_random2', 'drop_pilotv2_random3']
+# PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring', 'drop_pilotv2_random1']
+PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring', 'drop_pilotv2_random1', 'drop_pilotv2_random2', 'drop_pilotv2_random3']
 PRETRAINING_PROTOCOLS: ['only']
 # PRETRAINING_PROTOCOLS: ['only', 'abo', 'all']
 
@@ -14,4 +14,4 @@ READOUT_FILE_PATTERN: '*.hdf5'
 READOUT_SCENARIOS: ['Drop']
 READOUT_PROTOCOL: 'full'
 
-SEEDS: [0]
+SEEDS: [0,1,2]
