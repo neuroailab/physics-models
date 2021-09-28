@@ -26,7 +26,7 @@ class Objective(PytorchPhysOptObjective):
     def get_config(self):
         cfg = super().get_config()
         cfg.defrost()
-        cfg.merge_from_other_cfg(get_frozen_physion_cfg())
+        cfg.merge_from_other_cfg(get_frozen_physion_cfg(self.debug))
         cfg.freeze()
         return cfg
 
@@ -49,7 +49,7 @@ class Objective(PytorchPhysOptObjective):
         inputs = data['input_images'].to(self.device)
         labels = self.model.get_encoder_feats(data['label_image'].to(self.device))
         criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9) # TODO: add these to cfg
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg.TRAIN.LR)
         optimizer.zero_grad()
 
         outputs = self.model(inputs)
