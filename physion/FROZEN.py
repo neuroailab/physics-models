@@ -5,22 +5,10 @@ import torch
 from torch.utils.data import DataLoader
 
 from physion.utils import PytorchPhysOptObjective
-from physion.data.pydata import TDWDataset as TDWDatasetBase
+from physion.data.pydata import TDWDataset
 
 import physion.models.frozen as models
 from physion.config import get_frozen_physion_cfg
-
-class TDWDataset(TDWDatasetBase): # TODO: move to physion.utils
-    def __getitem__(self, index):
-        sample = self.get_seq(index)
-        images = sample['images'] # (seq_len, 3, D', D')
-        input_images = images[:self.state_len]
-        label_image = images[self.state_len]
-        sample.update({
-            'input_images': input_images,
-            'label_image': label_image,
-            })
-        return sample
 
 class Objective(PytorchPhysOptObjective):
     def get_config(self):

@@ -12,7 +12,7 @@ from  torch.utils.data import Dataset
 pil_logger = logging.getLogger('PIL')
 pil_logger.setLevel(logging.ERROR)
 
-class TDWDataset(Dataset):
+class TDWDatasetBase(Dataset):
     def __init__(
         self,
         data_root,
@@ -83,4 +83,16 @@ class TDWDataset(Dataset):
             'binary_labels': labels,
             'stimulus_name': stimulus_name,
         }
+        return sample
+
+class TDWDataset(TDWDatasetBase):
+    def __getitem__(self, index):
+        sample = self.get_seq(index)
+        images = sample['images'] # (seq_len, 3, D', D')
+        input_images = images[:self.state_len]
+        label_image = images[self.state_len]
+        sample.update({
+            'input_images': input_images,
+            'label_image': label_image,
+            })
         return sample
