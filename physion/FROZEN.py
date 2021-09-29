@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from physion.utils import PytorchPhysOptObjective
 from physion.data.pydata import TDWDataset
-
+from physion.metrics import latent_eval
 import physion.models.frozen as models
 from physion.config import get_frozen_physion_cfg
 
@@ -68,67 +68,12 @@ class Objective(PytorchPhysOptObjective):
                 pred_states.append(pred_state.cpu())
                 next_states.append(next_state.cpu())
 
-            pred_state_cat = torch.cat(pred_states, dim=0)
-            next_state_cat = torch.cat(next_states, dim=0)
+            pred_state_cat = torch.cat(pred_states, dim=0).numpy()
+            next_state_cat = torch.cat(next_states, dim=0).numpy()
 
         # convert list of dicts into single dict by aggregating with mean over values for a given key
         val_results = {k: np.mean([res[k] for res in val_results]) for k in val_results[0]} # assumes all keys are the same across list
-        val_results.update(self.latent_eval(pred_state_cat, next_state_cat))
-        return val_results
-
-    def latent_eval(self, pred_state_cat, next_state_cat): # TODO
-        topk = [1]
-        hits_at = defaultdict(int)
-        full_size = pred_state_cat.size(0)
-
-        # Flatten object/feature dimensions
-        next_state_flat = next_state_cat.view(full_size, -1)
-        pred_state_flat = pred_state_cat.view(full_size, -1)
-
-        dist_matrix = pairwise_distance_matrix(
-            next_state_flat, pred_state_flat)
-        dist_matrix_diag = torch.diag(dist_matrix).unsqueeze(-1)
-        dist_matrix_augmented = torch.cat(
-            [dist_matrix_diag, dist_matrix], dim=1)
-
-        # Workaround to get a stable sort in numpy.
-        dist_np = dist_matrix_augmented.numpy()
-        indices = []
-        for row in dist_np:
-            keys = (np.arange(len(row)), row)
-            indices.append(np.lexsort(keys))
-        indices = np.stack(indices, axis=0)
-        indices = torch.from_numpy(indices).long()
-
-        labels = torch.zeros(
-            indices.size(0), device=indices.device,
-            dtype=torch.int64).unsqueeze(-1)
-
-        num_samples = full_size
-        print('Size of current topk evaluation batch: {}'.format(
-            full_size))
-
-        for k in topk:
-            match = indices[:, :k] == labels
-            num_matches = match.sum()
-            hits_at[k] += num_matches.item()
-
-        match = indices == labels
-        _, ranks = match.max(1)
-
-        reciprocal_ranks = torch.reciprocal(ranks.double() + 1)
-        rr_sum = reciprocal_ranks.sum().item()
-
-        for k in topk:
-            print('Hits @ {}: {}'.format(k, hits_at[k] / float(num_samples)))
-
-        print('MRR: {}'.format(rr_sum / float(num_samples)))
-
-        val_results = {
-            'Hits_at_1': hits_at[1] / float(num_samples),
-            'MRR': rr_sum / float(num_samples),
-            'num_samples': num_samples,
-            }
+        val_results.update(latent_eval(pred_state_cat, next_state_cat))
         return val_results
 
     def val_step(self, data): # TODO: reduce duplication with train_step
@@ -236,12 +181,3 @@ class pDINO_LSTMObjective(Objective):
     model_name = 'pDINO_LSTM'
     def get_model(self):
         return get_frozen_model('dino', 'lstm').to(self.device)
-
-def pairwise_distance_matrix(x, y): # TODO
-    num_samples = x.size(0)
-    dim = x.size(1)
-
-    x = x.unsqueeze(1).expand(num_samples, num_samples, dim)
-    y = y.unsqueeze(0).expand(num_samples, num_samples, dim)
-
-    return torch.pow(x - y, 2).sum(2)
