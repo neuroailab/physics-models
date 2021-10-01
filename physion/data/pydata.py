@@ -8,6 +8,7 @@ import numpy as np
 import logging
 import torch
 from  torch.utils.data import Dataset
+from torchvision import transforms
 
 pil_logger = logging.getLogger('PIL')
 pil_logger.setLevel(logging.ERROR)
@@ -21,7 +22,8 @@ class TDWDatasetBase(Dataset):
         state_len,
         random_seq=True,
         debug=False,
-        subsample_factor=6, # TODO: change default to 1 probably
+        subsample_factor=1,
+        seed=0,
         ):
         assert isinstance(data_root, list)
         self.imsize = imsize
@@ -31,6 +33,7 @@ class TDWDatasetBase(Dataset):
         self.random_seq = random_seq # whether sequence should be sampled randomly from whole video or taken from the beginning
         self.debug = debug
         self.subsample_factor = subsample_factor
+        self.rng = np.random.RandomState(seed=seed)
 
         self.hdf5_files = []
         for path in data_root:
@@ -39,7 +42,7 @@ class TDWDatasetBase(Dataset):
             files = [fn for fn in files if 'tfrecords' not in fn]
             self.hdf5_files.extend(files)
             logging.info('Processed {} with {} files'.format(path, len(files)))
-        self.N = min(100, len(self.hdf5_files)) if debug else len(self.hdf5_files)
+        self.N = min(20, len(self.hdf5_files)) if debug else len(self.hdf5_files)
         logging.info('Dataset len: {}'.format(self.N))
 
     def __len__(self):
@@ -50,33 +53,34 @@ class TDWDatasetBase(Dataset):
 
     def get_seq(self, index):
         with h5py.File(self.hdf5_files[index], 'r') as f: # load ith hdf5 file from list
-            # extract images and labels
-            images = []
-            labels = []
-            for frame in list(f['frames'])[::self.subsample_factor]:
-                img = f['frames'][frame]['images']['_img'][()]
-                img = np.array(Image.open(io.BytesIO(img))) # (256, 256, 3)
-                images.append(img)
+            frames = list(f['frames'])
+            target_contacted_zone = False
+            for frame in reversed(frames):
                 lbl = f['frames'][frame]['labels']['target_contacting_zone'][()]
-                labels.append(lbl)
+                if lbl: # as long as one frame touching, label is True
+                    target_contacted_zone = True
+                    break
+
+            assert len(frames)//self.subsample_factor >= self.seq_len, 'Images must be at least len {}, but are {}'.format(self.seq_len, len(frames)//self.subsample_factor)
+            if self.random_seq: # randomly sample sequence of seq_len
+                start_idx = self.rng.randint(len(frames)-(self.seq_len*self.subsample_factor)+1)
+            else: # get first seq_len # of frames
+                start_idx = 0
+            end_idx = start_idx + (self.seq_len*self.subsample_factor)
+            images = []
+            img_transforms = transforms.Compose([
+                transforms.Resize((self.imsize, self.imsize)),
+                transforms.ToTensor(),
+                ])
+            for frame in frames[start_idx:end_idx:self.subsample_factor]:
+                img = f['frames'][frame]['images']['_img'][()]
+                img = Image.open(io.BytesIO(img)) # (256, 256, 3)
+                img = img_transforms(img)
+                images.append(img)
+
+            images = torch.stack(images, dim=0)
+            labels = torch.ones((self.seq_len, 1)) if target_contacted_zone else torch.zeros((self.seq_len, 1)) # Get single label over whole sequence
             stimulus_name = f['static']['stimulus_name'][()]
-
-        images = np.array(images, dtype=np.float32) / 255. # convert from [0, 255] to [0, 1]
-        images = torch.from_numpy(images).permute(0, 3, 1, 2) # (T, 3, D, D)
-        images = torch.nn.functional.interpolate(images, size=self.imsize)
-
-        labels = np.ones_like(labels) if np.any(labels) else np.zeros_like(labels) # Get single label over whole sequence
-        labels = torch.from_numpy(np.array(labels))
-        labels = torch.unsqueeze(labels, -1)
-
-        assert images.shape[0] >= self.seq_len, 'Images must be at least len {}, but are shape {}'.format(self.seq_len, images.shape)
-        if self.random_seq: # randomly sample sequence of seq_len
-            start_idx = torch.randint(0, images.shape[0]-self.seq_len+1, (1,))[0]
-            images = images[start_idx:start_idx+self.seq_len]
-            labels = labels[start_idx:start_idx+self.seq_len]
-        else: # get first seq_len # of frames
-            images = images[:self.seq_len]
-            labels = labels[:self.seq_len]
 
         sample = {
             'images': images,
