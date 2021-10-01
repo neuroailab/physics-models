@@ -1,17 +1,15 @@
 PRETRAINING_TRAIN_DIR: 'curiophysion_train_data'
 PRETRAINING_TEST_DIR: 'curiophysion_test_data'
-PRETRAINING_FILE_PATTERN: '*/*.hdf5'
-# PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting'] 
-# PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring']
-# PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring', 'drop_pilotv2_random1']
-PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring', 'drop_pilotv2_random1', 'drop_pilotv2_random2', 'drop_pilotv2_random3']
+# PRETRAINING_FILE_PATTERN: '*/*.hdf5'
+# PRETRAINING_SCENARIOS: ['drop_pilotv2_interesting', 'drop_pilotv2_boring', 'drop_pilotv2_random1', 'drop_pilotv2_random2', 'drop_pilotv2_random3']
+PRETRAINING_SCENARIOS: ['support_interesting', 'support_boring', 'support_random1', 'support_random2', 'support_random3', 'support_random4', 'support_random5']
 PRETRAINING_PROTOCOLS: ['only']
 # PRETRAINING_PROTOCOLS: ['only', 'abo', 'all']
 
 READOUT_TRAIN_DIR: 'physion_train_data/readout_training' 
 READOUT_TEST_DIR: 'physion_test_data/model_testing' 
 READOUT_FILE_PATTERN: '*.hdf5'
-READOUT_SCENARIOS: ['Drop']
+READOUT_SCENARIOS: ['Support_split']
 READOUT_PROTOCOL: 'full'
 
-SEEDS: [0,1,2]
+SEEDS: [0, 1, 2, 3, 4]

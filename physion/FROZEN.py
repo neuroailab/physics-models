@@ -1,6 +1,5 @@
 import numpy as np
 import logging
-from collections import defaultdict
 import torch
 from torch.utils.data import DataLoader
 
@@ -27,9 +26,10 @@ class Objective(PytorchPhysOptObjective):
             state_len=cfg.DATA.STATE_LEN,
             random_seq=True if phase=='pretraining' else False,
             debug=self.debug,
-            subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR
+            subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR,
+            seed=self.seed,
             )
-        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle)
+        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
         return dataloader
 
     def train_step(self, data):
