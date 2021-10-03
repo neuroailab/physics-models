@@ -3,6 +3,7 @@ import logging
 import torch
 from torch.utils.data import DataLoader
 
+from physopt.utils import PRETRAINING_PHASE_NAME, READOUT_PHASE_NAME
 from physion.utils import PytorchPhysOptObjective
 from physion.data.pydata import TDWDataset
 from physion.metrics import latent_eval
@@ -16,7 +17,7 @@ class Objective(PytorchPhysOptObjective):
             imsize=cfg.DATA.IMSIZE,
             seq_len=cfg.DATA.SEQ_LEN,
             state_len=cfg.DATA.STATE_LEN,
-            random_seq=True if phase=='pretraining' else False,
+            random_seq=True if phase==PRETRAINING_PHASE_NAME else False,
             debug=self.cfg.DEBUG,
             subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR,
             seed=self.seed,
@@ -40,7 +41,7 @@ class Objective(PytorchPhysOptObjective):
         return loss.item()
 
     def validation(self):
-        valloader = self.get_dataloader(self.pretraining_space['test'], phase='pretraining', train=False, shuffle=False)
+        valloader = self.get_dataloader(self.pretraining_space['test'], phase=PRETRAINING_PHASE_NAME, train=False, shuffle=False)
         val_results = []
         pred_states = []
         next_states = []
