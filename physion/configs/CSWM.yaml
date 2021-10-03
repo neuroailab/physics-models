@@ -1,0 +1,29 @@
+OUTPUT_DIR: '/data1/eliwang/curiophysopt'
+
+DATA_SPACE:
+    MODULE: physion.data.data_space
+    KWARGS: 
+        cfg_file: 'curiophysion.yaml'
+
+OBJECTIVE:
+    MODULE: cswm.CSWM
+
+CONFIG:
+    TRAIN_STEPS: 100
+    BATCH_SIZE: 32
+    TRAIN:
+        LR: 5.e-4
+    MODEL: 
+        ENCODER: 'medium'
+        SIGMA: 0.5
+        HINGE: 1. 
+        HIDDEN_DIM: 512
+        EMBEDDING_DIM: 128
+        NUM_OBJECTS: 10
+        ACTION_DIM: 0 
+        IGNORE_ACTION: True
+    DATA:
+        STATE_LEN: 7
+        SEQ_LEN: 25
+        IMSIZE: 224
+        SUBSAMPLE_FACTOR: 6

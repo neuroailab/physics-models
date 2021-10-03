@@ -7,16 +7,8 @@ from physion.utils import PytorchPhysOptObjective
 from physion.data.pydata import TDWDataset
 from physion.metrics import latent_eval
 import physion.models.frozen as models
-from physion.config import get_frozen_physion_cfg
 
 class Objective(PytorchPhysOptObjective):
-    def get_config(self):
-        cfg = super().get_config()
-        cfg.defrost()
-        cfg.merge_from_other_cfg(get_frozen_physion_cfg(self.debug))
-        cfg.freeze()
-        return cfg
-
     def get_dataloader(self, datapaths, phase, shuffle, **kwargs):
         cfg = self.cfg
         dataset = TDWDataset(
@@ -25,7 +17,7 @@ class Objective(PytorchPhysOptObjective):
             seq_len=cfg.DATA.SEQ_LEN,
             state_len=cfg.DATA.STATE_LEN,
             random_seq=True if phase=='pretraining' else False,
-            debug=self.debug,
+            debug=self.cfg.DEBUG,
             subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR,
             seed=self.seed,
             )
