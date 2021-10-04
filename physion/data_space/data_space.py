@@ -33,15 +33,6 @@ def get_config(cfg_file):
     cfg.freeze()
     return cfg
 
-def add_seed_to_data_spaces(seeds, data_spaces):
-    full_data_spaces = [] # full data space with seed
-    for seed in seeds:
-        for space in data_spaces:
-            space = space.copy()
-            space['seed'] = seed
-            full_data_spaces.append(space)
-    return full_data_spaces
-
 def get_data_spaces(cfg_file):
     cfg = get_config(cfg_file)
 
@@ -81,6 +72,4 @@ def get_data_spaces(cfg_file):
             }
         data_spaces.append(space)
 
-    full_data_spaces = add_seed_to_data_spaces(cfg.SEEDS, data_spaces)
-
-    return full_data_spaces
+    return data_spaces
