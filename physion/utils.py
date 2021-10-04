@@ -4,6 +4,7 @@ import re
 import numpy as np
 import torch
 import mlflow
+from torch.utils.data import DataLoader
 from physopt.utils import PhysOptObjective
 
 class PytorchPhysOptObjective(PhysOptObjective):
@@ -26,6 +27,20 @@ class PytorchPhysOptObjective(PhysOptObjective):
         np.random.seed(self.seed)
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
+
+    def get_dataloader(self, TDWDataset, datapaths, random_seq, shuffle):
+        dataset = TDWDataset(
+            data_root=datapaths,
+            imsize=self.cfg.DATA.IMSIZE,
+            seq_len=self.cfg.DATA.SEQ_LEN,
+            state_len=self.cfg.DATA.STATE_LEN,
+            random_seq=random_seq,
+            debug=self.cfg.DEBUG,
+            subsample_factor=self.cfg.DATA.SUBSAMPLE_FACTOR,
+            seed=self.seed,
+            )
+        dataloader = DataLoader(dataset, batch_size=self.cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
+        return dataloader
 
     @staticmethod
     def process_results(results):

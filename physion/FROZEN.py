@@ -1,7 +1,6 @@
 import numpy as np
 import logging
 import torch
-from torch.utils.data import DataLoader
 
 from physopt.utils import PRETRAINING_PHASE_NAME, READOUT_PHASE_NAME
 from physion.utils import PytorchPhysOptObjective
@@ -9,21 +8,19 @@ from physion.data.pydata import TDWDataset
 from physion.metrics import latent_eval
 import physion.models.frozen as models
 
+def get_dataset(datapaths, random_seq, seed, cfg):
+    return dataset
+
 class Objective(PytorchPhysOptObjective):
-    def get_dataloader(self, datapaths, phase, shuffle, **kwargs):
-        cfg = self.cfg
-        dataset = TDWDataset(
-            data_root=datapaths,
-            imsize=cfg.DATA.IMSIZE,
-            seq_len=cfg.DATA.SEQ_LEN,
-            state_len=cfg.DATA.STATE_LEN,
-            random_seq=True if phase==PRETRAINING_PHASE_NAME else False,
-            debug=self.cfg.DEBUG,
-            subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR,
-            seed=self.seed,
-            )
-        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
-        return dataloader
+    def get_pretraining_dataloader(self, datapaths, train):
+        random_seq = True # get random slice of video during pretraining
+        shuffle = True if train else False # no need to shuffle for validation
+        return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle)
+
+    def get_readout_dataloader(self, datapaths):
+        random_seq = False # get sequence from beginning for feature extraction
+        shuffle = False # no need to shuffle for feature extraction
+        return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle)
 
     def train_step(self, data):
         self.model.train() # set to train mode
@@ -41,7 +38,7 @@ class Objective(PytorchPhysOptObjective):
         return loss.item()
 
     def validation(self):
-        valloader = self.get_dataloader(self.pretraining_space['test'], phase=PRETRAINING_PHASE_NAME, train=False, shuffle=False)
+        valloader = self.get_pretraining_dataloader(self.pretraining_space['test'], train=False)
         val_results = []
         pred_states = []
         next_states = []
