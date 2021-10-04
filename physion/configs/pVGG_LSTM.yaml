@@ -1,7 +1,7 @@
 OUTPUT_DIR: '/data1/eliwang/curiophysopt'
 
 DATA_SPACE:
-    MODULE: physion.data.data_space
+    MODULE: physion.data_space
     KWARGS: 
         cfg_file: 'curiophysion.yaml'
 

@@ -1,7 +1,7 @@
 import os
 import socket
 import yaml
-from physion.data.config import get_cfg_defaults
+from physion.data_space.config import get_cfg_defaults
 
 def build_paths(name, scenarios, filepattern, traindir, testdir):
     dirname =  os.path.dirname(__file__)
