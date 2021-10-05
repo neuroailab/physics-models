@@ -8,9 +8,6 @@ from physion.data.pydata import TDWDataset
 from physion.metrics import latent_eval
 import physion.models.frozen as models
 
-def get_dataset(datapaths, random_seq, seed, cfg):
-    return dataset
-
 class Objective(PytorchPhysOptObjective):
     def get_pretraining_dataloader(self, datapaths, train):
         random_seq = True # get random slice of video during pretraining

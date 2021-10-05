@@ -1,2 +1,4 @@
+# Setup base paths for different hosts
+
 node16-ccncluster: '/data/eliwang/'
 node19-ccncluster: '/data1/eliwang/'
