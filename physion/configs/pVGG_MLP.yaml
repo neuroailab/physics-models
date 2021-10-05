@@ -1,9 +1,17 @@
 OUTPUT_DIR: '/data1/eliwang/curiophysopt'
 
 DATA_SPACE:
-    MODULE: physion.data.data_space
+    MODULE: physion.data_space
+    SEEDS: (0,)
     KWARGS: 
-        cfg_file: 'curiophysion.yaml'
+        pretraining_train_dir: 'curiophysion_train_data'
+        pretraining_test_dir: 'curiophysion_test_data'
+        pretraining_scenarios: ('support_interesting',)
+        pretraining_protocols: ('only',) 
+        readout_train_dir: 'physion_train_data/readout_training'
+        readout_test_dir: 'physion_test_data/model_testing'
+        readout_scenarios: ('Support_split',)
+        readout_protocol: 'full'
 
 OBJECTIVE:
     MODULE: physion.FROZEN

@@ -1,7 +1,6 @@
 import os
 import socket
 import yaml
-from physion.data_space.config import get_cfg_defaults
 
 def build_paths(name, scenarios, filepattern, traindir, testdir):
     dirname =  os.path.dirname(__file__)
@@ -21,54 +20,56 @@ def build_paths(name, scenarios, filepattern, traindir, testdir):
         'test': [os.path.join(testdir, scenario, filepattern) for scenario in scenarios],
         } 
 
-def get_config(cfg_file):
-    cfg = get_cfg_defaults()
-    if not os.path.isabs(cfg_file): # if not absolute path, looks in this file's dir (i.e. `physion/data/`)
-        dirname =  os.path.dirname(__file__)
-        cfg_file = os.path.join(dirname, cfg_file)
-    cfg.merge_from_file(cfg_file)
-    for dst_attr, src_attr in [('READOUT_FILE_PATTERN', 'PRETRAINING_FILE_PATTERN'), ('READOUT_SCENARIOS', 'PRETRAINING_SCENARIOS')]: # copy readout settings from pretraining if not set
-        if getattr(cfg, dst_attr) is None:
-            setattr(cfg, dst_attr, getattr(cfg, src_attr))
-    cfg.freeze()
-    return cfg
-
-def get_data_spaces(cfg_file):
-    cfg = get_config(cfg_file)
+def get_data_spaces(
+    pretraining_train_dir,
+    pretraining_test_dir,
+    pretraining_scenarios,
+    readout_train_dir,
+    readout_test_dir,
+    pretraining_file_pattern='*.hdf5',
+    pretraining_protocols=('all', 'abo', 'only'),
+    readout_scenarios=None,
+    readout_file_pattern=None,
+    readout_protocol='minimal', # {'full'|'minimal'}: 'minimal' only does readout on matching scenario to pretraining
+    ):
+    if readout_file_pattern is None:
+        readout_file_pattern = pretraining_file_pattern
+    if readout_scenarios is None:
+        readout_scenarios = pretraining_scenarios
 
     data_spaces = [] # only pretraining and readout spaces, without seed
-    for scenario in cfg.PRETRAINING_SCENARIOS:
-        if 'only' in cfg.PRETRAINING_PROTOCOLS:
-            if cfg.READOUT_PROTOCOL == 'full':
-                readout_scenarios = cfg.READOUT_SCENARIOS
+    for scenario in pretraining_scenarios:
+        if 'only' in pretraining_protocols:
+            if readout_protocol == 'full':
+                readout_scenarios = readout_scenarios
             else:
-                assert scenario in cfg.READOUT_SCENARIOS, '{} not in {}, but using "{}" readout protocol'.format(scenario, cfg.READOUT_SCENARIOS, cfg.READOUT_PROTOCOL)
+                assert scenario in readout_scenarios, '{} not in {}, but using "{}" readout protocol'.format(scenario, readout_scenarios, readout_protocol)
                 readout_scenarios = [scenaro]
             space = {
-                'pretraining': build_paths(scenario, [scenario], cfg.PRETRAINING_FILE_PATTERN, cfg.PRETRAINING_TRAIN_DIR, cfg.PRETRAINING_TEST_DIR),
-                'readout': [build_paths(scenario, [scenario], cfg.READOUT_FILE_PATTERN, cfg.READOUT_TRAIN_DIR, cfg.READOUT_TEST_DIR) for scenario in readout_scenarios],
+                'pretraining': build_paths(scenario, [scenario], pretraining_file_pattern, pretraining_train_dir, pretraining_test_dir),
+                'readout': [build_paths(scenario, [scenario], readout_file_pattern, readout_train_dir, readout_test_dir) for scenario in readout_scenarios],
                 }
             data_spaces.append(space)
 
-        if 'abo' in cfg.PRETRAINING_PROTOCOLS:
-            assert len(cfg.PRETRAINING_SCENARIOS) > 1, 'Must have more than one scenario to do all-but-one protocol.'
-            abo_scenarios = [s for s in cfg.PRETRAINING_SCENARIOS if s is not scenario]
-            if cfg.READOUT_PROTOCOL == 'full':
-                readout_scenarios = cfg.READOUT_SCENARIOS
+        if 'abo' in pretraining_protocols:
+            assert len(pretraining_scenarios) > 1, 'Must have more than one scenario to do all-but-one protocol.'
+            abo_scenarios = [s for s in pretraining_scenarios if s is not scenario]
+            if readout_protocol == 'full':
+                readout_scenarios = readout_scenarios
             else:
-                assert scenario in cfg.READOUT_SCENARIOS, '{} not in {}, but using "{}" readout protocol'.format(scenario, cfg.READOUT_SCENARIOS, cfg.READOUT_PROTOCOL)
+                assert scenario in readout_scenarios, '{} not in {}, but using "{}" readout protocol'.format(scenario, readout_scenarios, readout_protocol)
                 readout_scenarios = [scenaro]
             space = {
-                'pretraining': build_paths('no_'+scenario, abo_scenarios, cfg.PRETRAINING_FILE_PATTERN, cfg.PRETRAINING_TRAIN_DIR, cfg.PRETRAINING_TEST_DIR), # train on all but the scenario
-                'readout': [build_paths(scenario, [scenario], cfg.READOUT_FILE_PATTERN, cfg.READOUT_TRAIN_DIR, cfg.READOUT_TEST_DIR) for scenario in readout_scenarios],
+                'pretraining': build_paths('no_'+scenario, abo_scenarios, pretraining_file_pattern, pretraining_train_dir, pretraining_test_dir), # train on all but the scenario
+                'readout': [build_paths(scenario, [scenario], readout_file_pattern, readout_train_dir, readout_test_dir) for scenario in readout_scenarios],
                 }
             data_spaces.append(space)
         
-    if 'all' in cfg.PRETRAINING_PROTOCOLS:
-        assert len(cfg.PRETRAINING_SCENARIOS) > 1, 'Must have more than one scenario to do all protocol.'
+    if 'all' in pretraining_protocols:
+        assert len(pretraining_scenarios) > 1, 'Must have more than one scenario to do all protocol.'
         space = {
-            'pretraining': build_paths('all', cfg.PRETRAINING_SCENARIOS, cfg.PRETRAINING_FILE_PATTERN, cfg.PRETRAINING_TRAIN_DIR, cfg.PRETRAINING_TEST_DIR), # train on all scenarios
-            'readout': [build_paths(scenario, [scenario], cfg.READOUT_FILE_PATTERN, cfg.READOUT_TRAIN_DIR, cfg.READOUT_TEST_DIR) for scenario in cfg.READOUT_SCENARIOS], # readout on each scenario individually
+            'pretraining': build_paths('all', pretraining_scenarios, pretraining_file_pattern, pretraining_train_dir, pretraining_test_dir), # train on all scenarios
+            'readout': [build_paths(scenario, [scenario], readout_file_pattern, readout_train_dir, readout_test_dir) for scenario in readout_scenarios], # readout on each scenario individually
             }
         data_spaces.append(space)
 
