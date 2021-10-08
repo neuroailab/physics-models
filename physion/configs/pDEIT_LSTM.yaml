@@ -1,0 +1,31 @@
+OUTPUT_DIR: '/mnt/fs1/eliwang/curiophysopt'
+
+DATA_SPACE:
+    MODULE: physion.data_space
+    SEEDS: (0,)
+    KWARGS: 
+        pretraining_train_dir: '/mnt/fs4/eliwang/physion_data/pretraining_train'
+        pretraining_test_dir: '/mnt/fs4/eliwang/physion_data/pretraining_val'
+        pretraining_scenarios: ('Support',)
+        pretraining_protocols: ('only',) 
+        readout_train_dir: '/mnt/fs4/eliwang/physion_data/readout_train_redyellow'
+        readout_test_dir: '/mnt/fs4/eliwang/physion_data/readout_test_redyellow'
+        readout_scenarios: ('Support',)
+        readout_protocol: 'minimal'
+
+OBJECTIVE:
+    MODULE: physion.FROZEN
+    NAME: 'pDEIT_LSTMObjective'
+
+CONFIG:
+    TRAIN_STEPS: 10000
+    BATCH_SIZE: 32
+    POSTGRES:
+        DBNAME: 'physopt-gcp-test'
+    TRAIN:
+        LR: 1.e-2
+    DATA: 
+        STATE_LEN: 7
+        SEQ_LEN: 25
+        IMSIZE: 224
+        SUBSAMPLE_FACTOR: 6
