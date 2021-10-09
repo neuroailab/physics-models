@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import mlflow
 from torch.utils.data import DataLoader
-from physopt.utils import PhysOptObjective
+from physopt.objective import PhysOptObjective
 
 class PytorchPhysOptObjective(PhysOptObjective):
     def __init__(self, *args, **kwargs):

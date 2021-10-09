@@ -3,7 +3,7 @@ import logging
 import torch
 
 from physopt.utils import PRETRAINING_PHASE_NAME, READOUT_PHASE_NAME
-from physion.utils import PytorchPhysOptObjective
+from physion.objective import PytorchPhysOptObjective
 from physion.data.pydata import TDWDataset
 from physion.metrics import latent_eval
 import physion.models.frozen as models
