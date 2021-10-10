@@ -1,5 +1,3 @@
-OUTPUT_DIR: '/data1/eliwang/curiophysopt'
-
 DATA_SPACE:
     MODULE: physion.data_space
     SEEDS: (0,)
