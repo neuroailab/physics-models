@@ -10,5 +10,6 @@ setup(
         'h5py',
         'Pillow',
         'clip @ git+https://github.com/openai/CLIP.git@main',
+        'timm',
     ]
 )
