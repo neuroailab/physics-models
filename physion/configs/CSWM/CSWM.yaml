@@ -1,6 +1,6 @@
 DATA_SPACE:
     MODULE: physion.data_space
-    SEEDS: (0,)
+    SEEDS: (0,1,2,3)
     KWARGS: 
         pretraining_train_dir: 'curiophysion_train_data'
         pretraining_test_dir: 'curiophysion_test_data'
@@ -11,10 +11,18 @@ DATA_SPACE:
         readout_scenarios: ('Support_split',)
         readout_protocol: 'full'
 
-OBJECTIVE:
+PRETRAINING_OBJECTIVE:
     MODULE: cswm.CSWM
 
+EXTRACTION_OBJECTIVE:
+    MODULE: cswm.CSWM
+
+READOUT_OBJECTIVE:
+    MODULE: physion.objective
+    NAME: PhysionReadoutObjective
+
 CONFIG:
+    EXPERIMENT_NAME: 'curiophysion-3'
     TRAIN_STEPS: 100
     BATCH_SIZE: 32
     TRAIN:
