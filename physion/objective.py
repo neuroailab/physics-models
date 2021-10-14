@@ -49,8 +49,6 @@ class PytorchModel(PhysOptModel):
         return dataloader
 
 class PhysionReadoutObjective(ReadoutObjectiveBase):
-    model_name = 'CSWM' # TODO
-
     def get_readout_model(self):
         steps = [('clf', LogisticRegression(max_iter=self.cfg.READOUT.MAX_ITER))]
         if self.cfg.READOUT.NORM_INPUT:

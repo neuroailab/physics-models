@@ -22,6 +22,7 @@ READOUT_OBJECTIVE:
     NAME: PhysionReadoutObjective
 
 CONFIG:
+    MODEL_NAME: 'CSWM'
     EXPERIMENT_NAME: 'curiophysion-3'
     TRAIN_STEPS: 100
     BATCH_SIZE: 32
