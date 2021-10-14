@@ -11,12 +11,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 from torch.utils.data import DataLoader
-from physopt.objective import PretrainingObjective, ExtractionObjective, ReadoutObjective
+from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase, ReadoutObjectiveBase, PhysOptModel
 
-class PytorchPretrainingObjective(PretrainingObjective):
-    def __init__(self, *args, **kwargs):
+class PytorchModel(PhysOptModel):
+    def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # must set device first since used in get_model, called in super
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.init_seed()
 
     def load_model(self, model_file):
@@ -48,42 +48,7 @@ class PytorchPretrainingObjective(PretrainingObjective):
         dataloader = DataLoader(dataset, batch_size=self.cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
         return dataloader
 
-class PytorchExtractionObjective(ExtractionObjective): # TODO: duplicated
-    def __init__(self, *args, **kwargs):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # must set device first since used in get_model, called in super
-        super().__init__(*args, **kwargs)
-        self.init_seed()
-
-    def load_model(self, model_file):
-        assert os.path.isfile(model_file), f'Cannot find model file: {model_file}'
-        self.model.load_state_dict(torch.load(model_file))
-        logging.info(f'Loaded existing ckpt from {model_file}')
-        return self.model
-
-    def save_model(self, model_file):
-        logging.info(f'Saved model checkpoint to: {model_file}')
-        torch.save(self.model.state_dict(), model_file)
-
-    def init_seed(self):
-        np.random.seed(self.seed)
-        torch.manual_seed(self.seed)
-        torch.cuda.manual_seed(self.seed)
-
-    def get_dataloader(self, TDWDataset, datapaths, random_seq, shuffle):
-        dataset = TDWDataset(
-            data_root=datapaths,
-            imsize=self.cfg.DATA.IMSIZE,
-            seq_len=self.cfg.DATA.SEQ_LEN,
-            state_len=self.cfg.DATA.STATE_LEN,
-            random_seq=random_seq,
-            debug=self.cfg.DEBUG,
-            subsample_factor=self.cfg.DATA.SUBSAMPLE_FACTOR,
-            seed=self.seed,
-            )
-        dataloader = DataLoader(dataset, batch_size=self.cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
-        return dataloader
-
-class PhysionReadoutObjective(ReadoutObjective):
+class PhysionReadoutObjective(ReadoutObjectiveBase):
     model_name = 'CSWM' # TODO
 
     def get_readout_model(self):
