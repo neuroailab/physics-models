@@ -11,15 +11,9 @@ DATA_SPACE:
         readout_scenarios: ('Support_split',)
         readout_protocol: 'full'
 
-PRETRAINING_OBJECTIVE:
-    MODULE: cswm.CSWM
-
-EXTRACTION_OBJECTIVE:
-    MODULE: cswm.CSWM
-
-CONFIG:
+PRETRAINING:
+    OBJECTIVE_MODULE: cswm.CSWM
     MODEL_NAME: 'CSWM'
-    EXPERIMENT_NAME: 'curiophysion-3'
     TRAIN_STEPS: 100
     BATCH_SIZE: 32
     TRAIN:
@@ -38,3 +32,9 @@ CONFIG:
         SEQ_LEN: 25
         IMSIZE: 224
         SUBSAMPLE_FACTOR: 6
+
+EXTRACTION:
+    OBJECTIVE_MODULE: cswm.CSWM
+
+CONFIG:
+    EXPERIMENT_NAME: 'curiophysion-3'

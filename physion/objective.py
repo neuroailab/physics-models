@@ -35,32 +35,33 @@ class PytorchModel(PhysOptModel):
         torch.cuda.manual_seed(self.seed)
 
     def get_dataloader(self, TDWDataset, datapaths, random_seq, shuffle):
+        cfg = self.pretraining_cfg
         dataset = TDWDataset(
             data_root=datapaths,
-            imsize=self.cfg.DATA.IMSIZE,
-            seq_len=self.cfg.DATA.SEQ_LEN,
-            state_len=self.cfg.DATA.STATE_LEN,
+            imsize=cfg.DATA.IMSIZE,
+            seq_len=cfg.DATA.SEQ_LEN,
+            state_len=cfg.DATA.STATE_LEN,
             random_seq=random_seq,
             debug=self.cfg.DEBUG,
-            subsample_factor=self.cfg.DATA.SUBSAMPLE_FACTOR,
+            subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR,
             seed=self.seed,
             )
-        dataloader = DataLoader(dataset, batch_size=self.cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
+        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
         return dataloader
 
 class PhysionReadoutObjective(ReadoutObjectiveBase):
     def get_readout_model(self):
-        steps = [('clf', LogisticRegression(max_iter=self.cfg.READOUT.MAX_ITER))]
-        if self.cfg.READOUT.NORM_INPUT:
+        steps = [('clf', LogisticRegression(max_iter=self.readout_cfg.MODEL.MAX_ITER))]
+        if self.readout_cfg.MODEL.NORM_INPUT:
             steps.insert(0, ('scale', StandardScaler()))
         logging.info(f'Readout model steps: {steps}')
         pipe = Pipeline(steps)
 
-        assert len(self.cfg.READOUT.LOGSPACE) == 3, 'logspace must contain start, stop, and num'
+        assert len(self.readout_cfg.MODEL.LOGSPACE) == 3, 'logspace must contain start, stop, and num'
         grid_search_params = {
-            'clf__C': np.logspace(*self.cfg.READOUT.LOGSPACE),
+            'clf__C': np.logspace(*self.readout_cfg.MODEL.LOGSPACE),
             }
-        skf = StratifiedKFold(n_splits=self.cfg.READOUT.CV, shuffle=True, random_state=self.seed)
+        skf = StratifiedKFold(n_splits=self.readout_cfg.MODEL.CV, shuffle=True, random_state=self.seed)
         logging.info(f'CV folds: {skf}')
         readout_model = GridSearchCV(pipe, param_grid=grid_search_params, cv=skf, verbose=3)
         return readout_model
