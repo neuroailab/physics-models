@@ -17,10 +17,6 @@ PRETRAINING_OBJECTIVE:
 EXTRACTION_OBJECTIVE:
     MODULE: cswm.CSWM
 
-READOUT_OBJECTIVE:
-    MODULE: physion.objective
-    NAME: PhysionReadoutObjective
-
 CONFIG:
     MODEL_NAME: 'CSWM'
     EXPERIMENT_NAME: 'curiophysion-3'
