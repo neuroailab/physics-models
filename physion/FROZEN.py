@@ -15,10 +15,11 @@ def get_frozen_model(encoder, dynamics):
 
 class FrozenModel(PytorchModel):
     def get_model(self):
-        assert isinstance(self.model_name, str)
-        assert self.model_name.count('_') == 1, f'model name should be of the form "p{{ENCODER}}_{{DYNAMICS}}", but is "{self.model_name}"'
-        assert self.model_name[0] == 'p', f'model name should be of the form "p{{ENCODER}}_{{DYNAMICS}}", but is "{self.model_name}"'
-        encoder, dynamics = self.model_name[1:].split('_')
+        model_name = self.pretraining_cfg.MODEL_NAME
+        assert isinstance(model_name, str)
+        assert model_name.count('_') == 1, f'model name should be of the form "p{{ENCODER}}_{{DYNAMICS}}", but is "{model_name}"'
+        assert model_name[0] == 'p', f'model name should be of the form "p{{ENCODER}}_{{DYNAMICS}}", but is "{model_name}"'
+        encoder, dynamics = model_name[1:].split('_')
         logging.info(f'Getting model... Encoder: {encoder.lower()} | Dynamics: {dynamics.lower()}')
         model = get_frozen_model(encoder.lower(), dynamics.lower()).to(self.device)
         return model
