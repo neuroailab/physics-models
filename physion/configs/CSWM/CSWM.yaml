@@ -37,4 +37,4 @@ EXTRACTION:
     OBJECTIVE_MODULE: cswm.CSWM
 
 CONFIG:
-    EXPERIMENT_NAME: 'curiophysion-3'
+    EXPERIMENT_NAME: 'curiophysion-v2'

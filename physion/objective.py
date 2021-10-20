@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 from torch.utils.data import DataLoader
-from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase, ReadoutObjectiveBase, PhysOptModel
+from physopt.objective import ReadoutObjectiveBase, PhysOptModel
 
 class PytorchModel(PhysOptModel):
     def __init__(self):

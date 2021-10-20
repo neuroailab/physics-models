@@ -11,12 +11,9 @@ DATA_SPACE:
         readout_scenarios: ('Support_split',)
         readout_protocol: 'full'
 
-OBJECTIVE:
-    MODULE: physion.FROZEN
-    NAME: 'pDEIT_LSTMObjective'
-
-CONFIG:
-    EXPERIMENT_NAME: 'curiophysion-4'
+PRETRAINING:
+    OBJECTIVE_MODULE: physion.FROZEN
+    MODEL_NAME: 'pDEIT_LSTM'
     TRAIN_STEPS: 100
     BATCH_SIZE: 32
     TRAIN:
@@ -26,3 +23,9 @@ CONFIG:
         SEQ_LEN: 25
         IMSIZE: 224
         SUBSAMPLE_FACTOR: 6
+
+EXTRACTION:
+    OBJECTIVE_MODULE: physion.FROZEN
+
+CONFIG:
+    EXPERIMENT_NAME: 'curiophysion-v2'

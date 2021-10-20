@@ -2,21 +2,69 @@ import numpy as np
 import logging
 import torch
 
-from physopt.utils import PRETRAINING_PHASE_NAME, READOUT_PHASE_NAME
-from physion.objective import PytorchPhysOptObjective
+from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
+from physion.objective import PytorchModel
 from physion.data.pydata import TDWDataset
 from physion.metrics import latent_eval
 import physion.models.frozen as models
 
-class Objective(PytorchPhysOptObjective):
-    def get_pretraining_dataloader(self, datapaths, train):
-        random_seq = True # get random slice of video during pretraining
-        shuffle = True if train else False # no need to shuffle for validation
-        return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle)
+def get_frozen_model(encoder, dynamics):
+    model =  models.FrozenPhysion(encoder, dynamics)
+    # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
+    return model
 
+class FrozenModel(PytorchModel):
+    def get_model(self):
+        assert isinstance(self.model_name, str)
+        assert self.model_name.count('_') == 1, f'model name should be of the form "p{{ENCODER}}_{{DYNAMICS}}", but is "{self.model_name}"'
+        assert self.model_name[0] == 'p', f'model name should be of the form "p{{ENCODER}}_{{DYNAMICS}}", but is "{self.model_name}"'
+        encoder, dynamics = self.model_name[1:].split('_')
+        logging.info(f'Getting model... Encoder: {encoder.lower()} | Dynamics: {dynamics.lower()}')
+        model = get_frozen_model(encoder.lower(), dynamics.lower()).to(self.device)
+        return model
+
+class ExtractionObjective(ExtractionObjectiveBase, FrozenModel):
     def get_readout_dataloader(self, datapaths):
         random_seq = False # get sequence from beginning for feature extraction
         shuffle = False # no need to shuffle for feature extraction
+        return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle)
+
+    def extract_feat_step(self, data):
+        self.model.eval() # set to eval mode
+        with torch.no_grad(): # TODO: could use a little cleanup
+            state_len = data['input_images'].shape[1]
+            input_states = self.model.get_encoder_feats(data['input_images'].to(self.device))
+            images = data['images'][:, state_len:].to(self.device)
+            observed_states = self.model.get_encoder_feats(images)
+            rollout_steps = images.shape[1]
+
+            simulated_states = []
+            prev_states = input_states
+            for step in range(rollout_steps):
+                pred_state  = self.model.dynamics(prev_states) # dynamics model predicts next latent from past latents
+                simulated_states.append(pred_state)
+                # add most recent pred and delete oldest
+                prev_states.append(pred_state)
+                prev_states.pop(0)
+
+        input_states = torch.stack(input_states, axis=1).cpu().numpy()
+        observed_states = torch.stack(observed_states, axis=1).cpu().numpy() # TODO: cpu vs detach?
+        simulated_states = torch.stack(simulated_states, axis=1).cpu().numpy()
+        labels = data['binary_labels'].cpu().numpy()
+        stimulus_name = np.array(data['stimulus_name'], dtype=object)
+        output = {
+            'input_states': input_states,
+            'observed_states': observed_states,
+            'simulated_states': simulated_states,
+            'labels': labels,
+            'stimulus_name': stimulus_name,
+            }
+        return output
+
+class PretrainingObjective(PretrainingObjectiveBase, FrozenModel):
+    def get_pretraining_dataloader(self, datapaths, train):
+        random_seq = True # get random slice of video during pretraining
+        shuffle = True if train else False # no need to shuffle for validation
         return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle)
 
     def train_step(self, data):
@@ -24,7 +72,7 @@ class Objective(PytorchPhysOptObjective):
         inputs = data['input_images'].to(self.device)
         labels = self.model.get_encoder_feats(data['label_image'].to(self.device))
         criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg.TRAIN.LR)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR)
         optimizer.zero_grad()
 
         outputs = self.model(inputs)
@@ -71,100 +119,3 @@ class Objective(PytorchPhysOptObjective):
         criterion = torch.nn.MSELoss()
         loss = criterion(outputs, labels)
         return {'val_loss': loss.item()}
-
-    def extract_feat_step(self, data):
-        self.model.eval() # set to eval mode
-        with torch.no_grad(): # TODO: could use a little cleanup
-            state_len = data['input_images'].shape[1]
-            input_states = self.model.get_encoder_feats(data['input_images'].to(self.device))
-            images = data['images'][:, state_len:].to(self.device)
-            observed_states = self.model.get_encoder_feats(images)
-            rollout_steps = images.shape[1]
-
-            simulated_states = []
-            prev_states = input_states
-            for step in range(rollout_steps):
-                pred_state  = self.model.dynamics(prev_states) # dynamics model predicts next latent from past latents
-                simulated_states.append(pred_state)
-                # add most recent pred and delete oldest
-                prev_states.append(pred_state)
-                prev_states.pop(0)
-
-        input_states = torch.stack(input_states, axis=1).cpu().numpy()
-        observed_states = torch.stack(observed_states, axis=1).cpu().numpy() # TODO: cpu vs detach?
-        simulated_states = torch.stack(simulated_states, axis=1).cpu().numpy()
-        labels = data['binary_labels'].cpu().numpy()
-        stimulus_name = np.array(data['stimulus_name'], dtype=object)
-        output = {
-            'input_states': input_states,
-            'observed_states': observed_states,
-            'simulated_states': simulated_states,
-            'labels': labels,
-            'stimulus_name': stimulus_name,
-            }
-        return output
-
-def get_frozen_model(encoder, dynamics):
-    model =  models.FrozenPhysion(encoder, dynamics)
-    # model = torch.nn.DataParallel(model) # TODO: multi-gpu doesn't work yet, also for loading
-    return model
-
-class pVGG_IDObjective(Objective):
-    model_name = 'pVGG_ID'
-    def get_model(self):
-        return get_frozen_model('vgg', 'id').to(self.device)
-
-class pVGG_MLPObjective(Objective):
-    model_name = 'pVGG_MLP'
-    def get_model(self):
-        return get_frozen_model('vgg', 'mlp').to(self.device)
-
-class pVGG_LSTMObjective(Objective):
-    model_name = 'pVGG_LSTM'
-    def get_model(self):
-        return get_frozen_model('vgg', 'lstm').to(self.device)
-
-class pDEIT_IDObjective(Objective):
-    model_name = 'pDEIT_ID'
-    def get_model(self):
-        return get_frozen_model('deit', 'id').to(self.device)
-
-class pDEIT_MLPObjective(Objective):
-    model_name = 'pDEIT_MLP'
-    def get_model(self):
-        return get_frozen_model('deit', 'mlp').to(self.device)
-
-class pDEIT_LSTMObjective(Objective):
-    model_name = 'pDEIT_LSTM'
-    def get_model(self):
-        return get_frozen_model('deit', 'lstm').to(self.device)
-
-class pCLIP_IDObjective(Objective):
-    model_name = 'pCLIP_ID'
-    def get_model(self):
-        return get_frozen_model('clip', 'id').to(self.device)
-
-class pCLIP_MLPObjective(Objective):
-    model_name = 'pCLIP_MLP'
-    def get_model(self):
-        return get_frozen_model('clip', 'mlp').to(self.device)
-
-class pCLIP_LSTMObjective(Objective):
-    model_name = 'pCLIP_LSTM'
-    def get_model(self):
-        return get_frozen_model('clip', 'lstm').to(self.device)
-
-class pDINO_IDObjective(Objective):
-    model_name = 'pDINO_ID'
-    def get_model(self):
-        return get_frozen_model('dino', 'id').to(self.device)
-
-class pDINO_MLPObjective(Objective):
-    model_name = 'pDINO_MLP'
-    def get_model(self):
-        return get_frozen_model('dino', 'mlp').to(self.device)
-
-class pDINO_LSTMObjective(Objective):
-    model_name = 'pDINO_LSTM'
-    def get_model(self):
-        return get_frozen_model('dino', 'lstm').to(self.device)
