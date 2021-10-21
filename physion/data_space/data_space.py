@@ -41,13 +41,13 @@ def get_data_spaces(
     for scenario in pretraining_scenarios:
         if 'only' in pretraining_protocols:
             if readout_protocol == 'full':
-                readout_scenarios = readout_scenarios
+                curr_readout_scenarios = readout_scenarios
             else:
                 assert scenario in readout_scenarios, '{} not in {}, but using "{}" readout protocol'.format(scenario, readout_scenarios, readout_protocol)
-                readout_scenarios = [scenario]
+                curr_readout_scenarios = [scenario]
             space = {
                 'pretraining': build_paths(scenario, [scenario], pretraining_file_pattern, pretraining_train_dir, pretraining_test_dir),
-                'readout': [build_paths(scenario, [scenario], readout_file_pattern, readout_train_dir, readout_test_dir) for scenario in readout_scenarios],
+                'readout': [build_paths(scenario, [scenario], readout_file_pattern, readout_train_dir, readout_test_dir) for scenario in curr_readout_scenarios],
                 }
             data_spaces.append(space)
 
@@ -55,13 +55,13 @@ def get_data_spaces(
             assert len(pretraining_scenarios) > 1, 'Must have more than one scenario to do all-but-one protocol.'
             abo_scenarios = [s for s in pretraining_scenarios if s is not scenario]
             if readout_protocol == 'full':
-                readout_scenarios = readout_scenarios
+                curr_readout_scenarios = readout_scenarios
             else:
                 assert scenario in readout_scenarios, '{} not in {}, but using "{}" readout protocol'.format(scenario, readout_scenarios, readout_protocol)
-                readout_scenarios = [scenario]
+                curr_readout_scenarios = [scenario]
             space = {
                 'pretraining': build_paths('no_'+scenario, abo_scenarios, pretraining_file_pattern, pretraining_train_dir, pretraining_test_dir), # train on all but the scenario
-                'readout': [build_paths(scenario, [scenario], readout_file_pattern, readout_train_dir, readout_test_dir) for scenario in readout_scenarios],
+                'readout': [build_paths(scenario, [scenario], readout_file_pattern, readout_train_dir, readout_test_dir) for scenario in curr_readout_scenarios],
                 }
             data_spaces.append(space)
         
