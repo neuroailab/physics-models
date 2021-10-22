@@ -4,7 +4,7 @@ DATA_SPACE:
     KWARGS: 
         pretraining_train_dir: 'curiophysion_train_data'
         pretraining_test_dir: 'curiophysion_test_data'
-        pretraining_scenarios: ('support_random1','support_random2')
+        pretraining_scenarios: ('support_interesting','support_boring')
         pretraining_protocols: ('only',) 
         # readout_train_dir: 'physion_train_data/readout_training'
         # readout_test_dir: 'physion_test_data/model_testing'
@@ -15,7 +15,7 @@ DATA_SPACE:
 
 PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.FROZEN
-    MODEL_NAME: 'pVGG_LSTM'
+    MODEL_NAME: 'pDEIT_MLP'
     TRAIN_STEPS: 100
     BATCH_SIZE: 32
     TRAIN:
