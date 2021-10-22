@@ -3,7 +3,7 @@ import logging
 import torch
 
 from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
-from physion.objective import PytorchModel
+from physion.objective.objective import PytorchModel
 from physion.data.pydata import TDWDataset
 from physion.metrics import latent_eval
 import physion.models.frozen as models
