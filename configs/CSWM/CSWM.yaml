@@ -12,7 +12,7 @@ DATA_SPACE:
         readout_protocol: 'full'
 
 PRETRAINING:
-    OBJECTIVE_MODULE: cswm.CSWM
+    OBJECTIVE_MODULE: physion.objective.CSWM
     MODEL_NAME: 'CSWM'
     TRAIN_STEPS: 100
     BATCH_SIZE: 32
@@ -34,7 +34,7 @@ PRETRAINING:
         SUBSAMPLE_FACTOR: 6
 
 EXTRACTION:
-    OBJECTIVE_MODULE: cswm.CSWM
+    OBJECTIVE_MODULE: physion.objective.CSWM
 
 CONFIG:
-    EXPERIMENT_NAME: 'curiophysion-v2'
+    EXPERIMENT_NAME: 'curiophysion-v3'

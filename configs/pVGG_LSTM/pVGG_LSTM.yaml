@@ -6,10 +6,10 @@ DATA_SPACE:
         pretraining_test_dir: 'curiophysion_test_data'
         pretraining_scenarios: ('support_random1','support_random2')
         pretraining_protocols: ('only',) 
-        # readout_train_dir: 'physion_train_data/readout_training'
-        # readout_test_dir: 'physion_test_data/model_testing'
-        readout_train_dir: 'physion_data/readout_train_redyellow'
-        readout_test_dir: 'physion_data/readout_test_redyellow'
+        readout_train_dir: 'physion_train_data/readout_training'
+        readout_test_dir: 'physion_test_data/model_testing'
+        # readout_train_dir: 'physion_data/readout_train_redyellow'
+        # readout_test_dir: 'physion_data/readout_test_redyellow'
         readout_scenarios: ('Support_split',)
         readout_protocol: 'full'
 

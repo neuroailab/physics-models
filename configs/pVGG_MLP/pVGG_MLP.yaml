@@ -11,11 +11,9 @@ DATA_SPACE:
         readout_scenarios: ('Support_split',)
         readout_protocol: 'full'
 
-OBJECTIVE:
-    MODULE: physion.FROZEN
-    NAME: 'pVGG_MLPObjective'
-
-CONFIG:
+PRETRAINING:
+    OBJECTIVE_MODULE: physion.objective.FROZEN
+    MODEL_NAME: 'pVGG_MLP'
     TRAIN_STEPS: 100
     BATCH_SIZE: 32
     TRAIN:
@@ -25,3 +23,9 @@ CONFIG:
         SEQ_LEN: 25
         IMSIZE: 224
         SUBSAMPLE_FACTOR: 6
+
+EXTRACTION:
+    OBJECTIVE_MODULE: physion.objective.FROZEN
+
+CONFIG:
+    EXPERIMENT_NAME: 'curiophysion-v3'
