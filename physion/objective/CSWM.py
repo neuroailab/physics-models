@@ -29,7 +29,7 @@ class CSWMModel(PytorchModel):
         model.apply(weights_init) 
         return model
 
-class ExtractionObjective(ExtractionObjectiveBase, CSWMModel):
+class ExtractionObjective(CSWMModel, ExtractionObjectiveBase):
     def get_readout_dataloader(self, datapaths):
         random_seq = False # get sequence from beginning for feature extraction
         shuffle = False # no need to shuffle for feature extraction
@@ -70,7 +70,7 @@ class ExtractionObjective(ExtractionObjectiveBase, CSWMModel):
             }
         return output
 
-class PretrainingObjective(PretrainingObjectiveBase, CSWMModel):
+class PretrainingObjective(CSWMModel, PretrainingObjectiveBase):
     def get_pretraining_dataloader(self, datapaths, train):
         random_seq = True # get random slice of video during pretraining
         shuffle = True if train else False # no need to shuffle for validation

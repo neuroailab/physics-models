@@ -14,9 +14,9 @@ from torch.utils.data import DataLoader
 from physopt.objective import ReadoutObjectiveBase, PhysOptModel
 
 class PytorchModel(PhysOptModel):
-    def __init__(self):
+    def __init__(self, *args, **kwargs): # TODO: better to not use init for this?
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # must set device first since used in get_model, called in super
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
     def load_model(self, model_file):
         assert os.path.isfile(model_file), f'Cannot find model file: {model_file}'
@@ -29,6 +29,7 @@ class PytorchModel(PhysOptModel):
         torch.save(self.model.state_dict(), model_file)
 
     def init_seed(self):
+        super().init_seed()
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
 

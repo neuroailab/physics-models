@@ -24,7 +24,7 @@ class FrozenModel(PytorchModel):
         model = get_frozen_model(encoder.lower(), dynamics.lower()).to(self.device)
         return model
 
-class ExtractionObjective(ExtractionObjectiveBase, FrozenModel):
+class ExtractionObjective(FrozenModel, ExtractionObjectiveBase):
     def get_readout_dataloader(self, datapaths):
         random_seq = False # get sequence from beginning for feature extraction
         shuffle = False # no need to shuffle for feature extraction
@@ -62,7 +62,7 @@ class ExtractionObjective(ExtractionObjectiveBase, FrozenModel):
             }
         return output
 
-class PretrainingObjective(PretrainingObjectiveBase, FrozenModel):
+class PretrainingObjective(FrozenModel, PretrainingObjectiveBase):
     def get_pretraining_dataloader(self, datapaths, train):
         random_seq = True # get random slice of video during pretraining
         shuffle = True if train else False # no need to shuffle for validation
