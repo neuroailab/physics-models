@@ -17,7 +17,6 @@ class PytorchModel(PhysOptModel):
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # must set device first since used in get_model, called in super
         super().__init__()
-        self.init_seed()
 
     def load_model(self, model_file):
         assert os.path.isfile(model_file), f'Cannot find model file: {model_file}'
@@ -30,7 +29,6 @@ class PytorchModel(PhysOptModel):
         torch.save(self.model.state_dict(), model_file)
 
     def init_seed(self):
-        np.random.seed(self.seed)
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
 
