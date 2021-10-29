@@ -64,3 +64,10 @@ class PhysionReadoutObjective(ReadoutObjectiveBase):
         logging.info(f'CV folds: {skf}')
         readout_model = GridSearchCV(pipe, param_grid=grid_search_params, cv=skf, verbose=3)
         return readout_model
+
+    @staticmethod
+    def get_readout_model_info(readout_model):
+        results = {}
+        results['best_params'] = readout_model.best_params_
+        results['cv_results'] = readout_model.cv_results_
+        return results
