@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from physopt.objective.utils import PRETRAINING_PHASE_NAME, READOUT_PHASE_NAME
 from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
 from physion.objective.objective import PytorchModel
-from physion.metrics import latent_eval
+from physion.metrics import latent_eval_agg_func
 
 from cswm.modules import ContrastiveSWM
 from cswm.utils import TDWDataset, weights_init
@@ -89,42 +89,31 @@ class PretrainingObjective(CSWMModel, PretrainingObjectiveBase):
         optimizer.step()
         return loss.item() # scalar loss value for the step
 
-    def validation(self):
-        valloader = self.get_pretraining_dataloader(self.pretraining_space['test'], train=False)
-        val_results = []
-        pred_states = []
-        next_states = []
-        with torch.no_grad():
-            for i, data in enumerate(valloader):
-                logging.info('Val Step: {0:>5}'.format(i+1))
-                val_res = self.val_step(data)
-                assert isinstance(val_res, dict)
-                val_results.append(val_res)
-
-                data = [data[k] for k in ['obs', 'action', 'next_obs']] # to match format of StateTransitionsDataset
-                data = [tensor.to(self.device) for tensor in data]
-                obs, actions, next_obs = data
-                state = self.model.obj_encoder(self.model.obj_extractor(obs))
-                next_state = self.model.obj_encoder(self.model.obj_extractor(next_obs))
-
-                pred_trans = self.model.transition_model(state, actions[0]) # just use first action since it's always 0
-                pred_state = state + pred_trans
-
-                pred_states.append(pred_state.cpu())
-                next_states.append(next_state.cpu())
-
-            pred_state_cat = torch.cat(pred_states, dim=0).numpy()
-            next_state_cat = torch.cat(next_states, dim=0).numpy()
-
-        # convert list of dicts into single dict by aggregating with mean over values for a given key
-        val_results = {k: np.mean([res[k] for res in val_results]) for k in val_results[0]} # assumes all keys are the same across list
-        val_results.update(latent_eval(pred_state_cat, next_state_cat))
-        return val_results
+    def validation_agg_func(self, val_results): # not static method since uses super
+        results = latent_eval_agg_func(val_results)    
+        results.update(super().validation_agg_func([{'val_loss':res['val_loss']} for res in val_results])) # apply "mean agg func" to val_loss
+        return results
 
     def val_step(self, data):
-        self.model.eval() # set to eval mode
-        loss = self.get_contrastive_loss(data)
-        return {'val_loss': loss.item()}
+        with torch.no_grad():
+            self.model.eval() # set to eval mode
+            loss = self.get_contrastive_loss(data)
+
+            data = [data[k] for k in ['obs', 'action', 'next_obs']] # to match format of StateTransitionsDataset
+            data = [tensor.to(self.device) for tensor in data]
+            obs, actions, next_obs = data
+            state = self.model.obj_encoder(self.model.obj_extractor(obs))
+            next_state = self.model.obj_encoder(self.model.obj_extractor(next_obs))
+
+            pred_trans = self.model.transition_model(state, actions[0]) # just use first action since it's always 0
+            pred_state = state + pred_trans
+
+        val_res = {
+            'val_loss': loss.item(),
+            'pred_state': pred_state.cpu().numpy(),
+            'next_state': next_state.cpu().numpy(),
+        }
+        return val_res
 
     def get_contrastive_loss(self, data):
         data = [data[k] for k in ['obs', 'action', 'next_obs']] # to match format of StateTransitionsDataset

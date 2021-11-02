@@ -5,7 +5,7 @@ import torch
 from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
 from physion.objective.objective import PytorchModel
 from physion.data.pydata import TDWDataset
-from physion.metrics import latent_eval
+from physion.metrics import latent_eval_agg_func
 import physion.models.frozen as models
 
 def get_frozen_model(encoder, dynamics):
@@ -83,40 +83,29 @@ class PretrainingObjective(FrozenModel, PretrainingObjectiveBase):
 
         return loss.item()
 
-    def validation(self):
-        valloader = self.get_pretraining_dataloader(self.pretraining_space['test'], train=False)
-        val_results = []
-        pred_states = []
-        next_states = []
-        with torch.no_grad():
-            for i, data in enumerate(valloader):
-                logging.info('Val Step: {0:>5}'.format(i+1))
-                val_res = self.val_step(data)
-                assert isinstance(val_res, dict)
-                val_results.append(val_res)
-
-                state_len = data['input_images'].shape[1]
-                states = self.model.get_encoder_feats(data['images'][:,:state_len+1].to(self.device))
-                input_state = states[:-1]
-                next_state = states[-1]
-                pred_state  = self.model.dynamics(input_state) # dynamics model predicts next latent from past latents
-
-                pred_states.append(pred_state.cpu())
-                next_states.append(next_state.cpu())
-
-            pred_state_cat = torch.cat(pred_states, dim=0).numpy()
-            next_state_cat = torch.cat(next_states, dim=0).numpy()
-
-        # convert list of dicts into single dict by aggregating with mean over values for a given key
-        val_results = {k: np.mean([res[k] for res in val_results]) for k in val_results[0]} # assumes all keys are the same across list
-        val_results.update(latent_eval(pred_state_cat, next_state_cat))
-        return val_results
+    def validation_agg_func(self, val_results): # not static method since uses super
+        results = latent_eval_agg_func(val_results)    
+        results.update(super().validation_agg_func([{'val_loss':res['val_loss']} for res in val_results])) # apply "mean agg func" to val_loss
+        return results
 
     def val_step(self, data): # TODO: reduce duplication with train_step
-        self.model.eval() # set to eval mode
-        inputs = data['input_images'].to(self.device)
-        labels = self.model.get_encoder_feats(data['label_image'].to(self.device))
-        outputs = self.model(inputs)
-        criterion = torch.nn.MSELoss()
-        loss = criterion(outputs, labels)
-        return {'val_loss': loss.item()}
+        with torch.no_grad():
+            self.model.eval() # set to eval mode
+            inputs = data['input_images'].to(self.device)
+            labels = self.model.get_encoder_feats(data['label_image'].to(self.device))
+            outputs = self.model(inputs)
+            criterion = torch.nn.MSELoss()
+            loss = criterion(outputs, labels)
+
+            state_len = data['input_images'].shape[1]
+            states = self.model.get_encoder_feats(data['images'][:,:state_len+1].to(self.device))
+            input_state = states[:-1]
+            next_state = states[-1]
+            pred_state  = self.model.dynamics(input_state) # dynamics model predicts next latent from past latents
+
+        val_res = {
+            'val_loss': loss.item(),
+            'pred_state': pred_state.cpu(),
+            'next_state': next_state.cpu(),
+        }
+        return val_res

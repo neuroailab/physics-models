@@ -1,6 +1,11 @@
 import numpy as np
 from collections import defaultdict
 
+def latent_eval_agg_func(val_results):
+    pred_state_cat = np.concatenate([res['pred_state'] for res in val_results], axis=0)
+    next_state_cat = np.concatenate([res['next_state'] for res in val_results], axis=0)
+    return latent_eval(pred_state_cat, next_state_cat)
+
 def latent_eval(pred_states, next_states, topk=[1]):
     assert pred_states.shape == next_states.shape
     assert isinstance(pred_states, np.ndarray)
