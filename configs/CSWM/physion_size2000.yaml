@@ -20,7 +20,7 @@ DATA_SPACE:
 PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.CSWM
     MODEL_NAME: 'CSWM'
-    TRAIN_STEPS: 10000
+    TRAIN_STEPS: 100000 # probably don't need so many steps
     BATCH_SIZE: 32
     VAL_FREQ: 1000
     CKPT_FREQ: 1000
@@ -43,8 +43,11 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.CSWM
+    LOAD_STEP: 10000
 
 CONFIG:
     EXPERIMENT_NAME: 'physion-pretraining-size'
     POSTGRES:
         DBNAME: 'physion-pretraining-size'
+
+SKIP_PRETRAINING: True # since pretraining didn't finish
