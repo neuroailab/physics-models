@@ -23,7 +23,7 @@ PRETRAINING:
     MODEL_NAME: 'CSWM'
     TRAIN_STEPS: 1000
     BATCH_SIZE: 32
-    VAL_FREQ: 100
+    VAL_FREQ: 1000
     CKPT_FREQ: 100
     TRAIN:
         LR: 5.e-4
@@ -44,6 +44,10 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.CSWM
+
+READOUT:
+    MODEL:
+        MAX_ITER: 200
 
 CONFIG:
     EXPERIMENT_NAME: 'physion-pretraining-size'
