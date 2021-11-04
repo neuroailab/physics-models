@@ -2,6 +2,10 @@ import os
 import socket
 import yaml
 
+DEFAULTS = {
+    'suffix': '',
+}
+
 class DataManager():
     def __init__(self, data_settings):
         self.data_settings = data_settings
@@ -16,9 +20,12 @@ class DataManager():
                 try:
                     val = self.data_settings[setting]
                 except KeyError:
-                    print(self.data_settings)
-                    print(f'{setting} not found for phase {phase} and mode {mode}')
-                    raise
+                    if setting in DEFAULTS:
+                        val = DEFAULTS[setting]
+                    else:
+                        print(self.data_settings)
+                        print(f'{setting} not found for phase {phase} and mode {mode}')
+                        raise
         return val
 
     def get_scenarios(self, mode, phase):

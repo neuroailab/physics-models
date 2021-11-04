@@ -4,7 +4,6 @@ DATA_SPACE:
     KWARGS:
         # scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
         scenarios: ['Collide', 'Contain', 'Dominoes']
-        suffix: ''
         file_pattern: '*.hdf5'
         pretraining:
             train:
