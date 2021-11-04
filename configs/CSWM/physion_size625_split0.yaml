@@ -1,13 +1,13 @@
 DATA_SPACE:
     MODULE: physion.data_space
-    SEEDS: [1,2]
+    SEEDS: [0,1,2]
     KWARGS:
         scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
         file_pattern: '*.hdf5'
         pretraining:
             train:
                 dir: 'physion_data/pretraining_train'
-                suffix: '_size13_split0'
+                suffix: '_size625_split0'
             test:
                 dir: 'physion_data/pretraining_val'
         readout:

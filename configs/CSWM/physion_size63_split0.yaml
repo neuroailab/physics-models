@@ -1,6 +1,6 @@
 DATA_SPACE:
     MODULE: physion.data_space
-    SEEDS: (0,)
+    SEEDS: [1,2]
     KWARGS:
         scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
         file_pattern: '*.hdf5'

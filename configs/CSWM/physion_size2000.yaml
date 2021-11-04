@@ -43,7 +43,7 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.CSWM
-    LOAD_STEP: 10000
+    LOAD_STEP: 1000
 
 CONFIG:
     EXPERIMENT_NAME: 'physion-pretraining-size'
