@@ -6,9 +6,14 @@ DEFAULTS = {
     'suffix': '',
 }
 
-class DataManager():
-    def __init__(self, data_settings):
+class DataSpaceBuilder():
+    def __init__(self, data_settings, readout_protocol):
         self.data_settings = data_settings
+        self.readout_protocol = readout_protocol
+        self.pretraining_train_scenarios = self.get_scenarios('train', 'pretraining')
+        self.pretraining_test_scenarios = self.get_scenarios('test', 'pretraining')
+        self.readout_train_scenarios = self.get_scenarios('train', 'readout')
+        self.readout_test_scenarios = self.get_scenarios('test', 'readout')
 
     def get_setting(self, setting, mode, phase):
         try:
@@ -68,94 +73,65 @@ class DataManager():
             res[mode] = [os.path.join(data_dir, scenario, file_pattern) for scenario in curr_scenarios]
         return res
 
-def get_readout_paths(data_manager, readout_protocol, pretraining_train_scenario):
-    readout_train_scenarios = data_manager.get_scenarios('train', 'readout')
-    readout_test_scenarios = data_manager.get_scenarios('test', 'readout')
-    if readout_protocol == 'full':
-        readout_paths = [data_manager.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout') for readout_train_scenario, readout_test_scenario in zip(readout_train_scenarios, readout_test_scenarios)]
-    else: # "minimal" protocal matches readout train scenario to pretraining train scenario
-        pretrain_train_wo_suffix = pretraining_train_scenario.replace(data_manager.get_setting('suffix', 'train', 'pretraining'), '', 1)
-        assert pretrain_train_wo_suffix in readout_train_scenarios, '{} not in {}, but using "{}" readout protocol'.format(pretrain_train_wo_suffix, readout_train_scenarios, readout_protocol)
-        readout_train_scenario = pretrain_train_wo_suffix
-        readout_test_scenario = readout_test_scenarios[readout_train_scenarios.index(pretrain_train_wo_suffix)]
-        readout_paths = [data_manager.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout')]
-    return readout_paths
+    def get_readout_paths(self, pretraining_train_scenario):
+        if self.readout_protocol == 'full':
+            readout_paths = [self.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout') for readout_train_scenario, readout_test_scenario in zip(readout_train_scenarios, readout_test_scenarios)]
+        else: # "minimal" protocal matches readout train scenario to pretraining train scenario
+            pretrain_train_wo_suffix = pretraining_train_scenario.replace(self.get_setting('suffix', 'train', 'pretraining'), '', 1)
+            assert pretrain_train_wo_suffix in self.readout_train_scenarios, '{} not in {}, but using "{}" readout protocol'.format(pretrain_train_wo_suffix, self.readout_train_scenarios, self.readout_protocol)
+            readout_train_scenario = pretrain_train_wo_suffix
+            readout_test_scenario = self.readout_test_scenarios[self.readout_train_scenarios.index(readout_train_scenario)] # get readout test scenario corresponding to train
+            readout_paths = [self.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout')]
+        return readout_paths
 
-def get_only_space(
-    data_manager,
-    readout_protocol,
-    ):
-    data_spaces = []
-    pretraining_train_scenarios = data_manager.get_scenarios('train', 'pretraining')
-    pretraining_test_scenarios = data_manager.get_scenarios('test', 'pretraining')
-    for pretraining_train_scenario, pretraining_test_scenario in zip(pretraining_train_scenarios, pretraining_test_scenarios):
+    def get_only_space(self):
+        data_spaces = []
+        for pretraining_train_scenario, pretraining_test_scenario in zip(self.pretraining_train_scenarios, self.pretraining_test_scenarios):
+            space = {
+                'pretraining': self.build_paths(pretraining_train_scenario, {'train': pretraining_train_scenario, 'test': pretraining_test_scenario}, 'pretraining'),
+                'readout': self.get_readout_paths(pretraining_train_scenario),
+                }
+            data_spaces.append(space)
+        return data_spaces
+
+    def get_abo_space(self):
+        data_spaces = []
+        assert len(self.pretraining_train_scenarios) > 1, 'Must have more than one scenario to do all-but-one pretraining protocol.' # just check train since train and test should be same length
+        for pretraining_train_scenario, pretraining_test_scenario in zip(self.pretraining_train_scenarios, self.pretraining_test_scenarios):
+            # build abo scenarios
+            abo_pretraining_scenarios = list(zip(self.pretraining_train_scenarios, self.pretraining_test_scenarios))
+            abo_pretraining_scenarios.remove((pretraining_train_scenario, pretraining_test_scenario))
+            abo_pretraining_train_scenarios, abo_pretraining_test_scenarios = [list(t) for t in zip(*abo_pretraining_scenarios)]
+
+            space = {
+                'pretraining': self.build_paths('no_'+pretraining_train_scenario, {'train': abo_pretraining_train_scenarios, 'test': abo_pretraining_test_scenarios}, 'pretraining'),
+                'readout': self.get_readout_paths(pretraining_train_scenario),
+                }
+            data_spaces.append(space)
+        return data_spaces
+
+    def get_all_space(self):
+        assert len(self.pretraining_train_scenarios) > 1, f'Must have more than one scenario to do all pretraining protocol.' # just check train since train and test should be same length
+        pretraining_train_suffix = self.get_setting('suffix', 'train', 'pretraining')
         space = {
-            'pretraining': data_manager.build_paths(pretraining_train_scenario, {'train': pretraining_train_scenario, 'test': pretraining_test_scenario}, 'pretraining'),
-            'readout': get_readout_paths(data_manager, readout_protocol, pretraining_train_scenario),
+            'pretraining': self.build_paths('all'+pretraining_train_suffix, {'train': self.pretraining_train_scenarios, 'test': self.pretraining_test_scenarios}, 'pretraining'),
+            'readout': [self.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout') for readout_train_scenario, readout_test_scenario in zip(self.readout_train_scenarios, self.readout_test_scenarios)] # TODO: implement "minimal" readout protocol for "all" which matches the training scenarios?
             }
-        data_spaces.append(space)
-    return data_spaces
-
-def get_abo_space(
-    data_manager,
-    readout_protocol,
-    ):
-    data_spaces = []
-    pretraining_train_scenarios = data_manager.get_scenarios('train', 'pretraining')
-    pretraining_test_scenarios = data_manager.get_scenarios('test', 'pretraining')
-    readout_train_scenarios = data_manager.get_scenarios('train', 'readout')
-    readout_test_scenarios = data_manager.get_scenarios('test', 'readout')
-    assert len(pretraining_train_scenarios) > 1, 'Must have more than one scenario to do all-but-one pretraining protocol.' # just check train since train and test should be same length
-    for pretraining_train_scenario, pretraining_test_scenario in zip(pretraining_train_scenarios, pretraining_test_scenarios):
-        # build abo scenarios
-        abo_pretraining_scenarios = list(zip(pretraining_train_scenarios, pretraining_test_scenarios))
-        abo_pretraining_scenarios.remove((pretraining_train_scenario, pretraining_test_scenario))
-        abo_pretraining_train_scenarios, abo_pretraining_test_scenarios = [list(t) for t in zip(*abo_pretraining_scenarios)]
-
-        space = {
-            'pretraining': data_manager.build_paths('no_'+pretraining_train_scenario, {'train': abo_pretraining_train_scenarios, 'test': abo_pretraining_test_scenarios}, 'pretraining'),
-            'readout': get_readout_paths(data_manager, readout_protocol, pretraining_train_scenario),
-            }
-        data_spaces.append(space)
-    return data_spaces
-
-def get_all_space(
-    data_manager,
-    ):
-    pretraining_train_scenarios = data_manager.get_scenarios('train', 'pretraining')
-    pretraining_test_scenarios = data_manager.get_scenarios('test', 'pretraining')
-    readout_train_scenarios = data_manager.get_scenarios('train', 'readout')
-    readout_test_scenarios = data_manager.get_scenarios('test', 'readout')
-    assert len(pretraining_train_scenarios) > 1, f'Must have more than one scenario to do all pretraining protocol.' # just check train since train and test should be same length
-    pretraining_train_suffix = data_manager.get_setting('suffix', 'train', 'pretraining')
-    space = {
-        'pretraining': data_manager.build_paths('all'+pretraining_train_suffix, {'train': pretraining_train_scenarios, 'test': pretraining_test_scenarios}, 'pretraining'),
-        'readout': [data_manager.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout') for readout_train_scenario, readout_test_scenario in zip(readout_train_scenarios, readout_test_scenarios)]
-        }
-    data_spaces = [space]
-    return data_spaces
+        return [space]
 
 def get_data_spaces(
     pretraining_protocols=('all', 'abo', 'only'),
     readout_protocol='minimal', # {'full'|'minimal'}: 'minimal' only does readout on matching scenario to pretraining
     **data_settings
     ):
-    data_manager = DataManager(data_settings)
+    builder = DataSpaceBuilder(data_settings, readout_protocol)
 
     data_spaces = [] # only pretraining and readout spaces, without seed
     if 'only' in pretraining_protocols:
-        data_spaces.extend(get_only_space(
-            data_manager,
-            readout_protocol,
-            ))
+        data_spaces.extend(builder.get_only_space())
     if 'abo' in pretraining_protocols:
-        data_spaces.extend(get_abo_space(
-            data_manager,
-            readout_protocol,
-            ))
+        data_spaces.extend(builder.get_abo_space())
     if 'all' in pretraining_protocols:
-        data_spaces.extend(get_all_space(
-            data_manager,
-            ))
+        data_spaces.extend(builder.get_all_space())
     # print(*data_spaces, sep='\n')
     return data_spaces
