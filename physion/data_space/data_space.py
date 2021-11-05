@@ -75,7 +75,7 @@ class DataSpaceBuilder():
 
     def get_readout_paths(self, pretraining_train_scenario):
         if self.readout_protocol == 'full':
-            readout_paths = [self.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout') for readout_train_scenario, readout_test_scenario in zip(readout_train_scenarios, readout_test_scenarios)]
+            readout_paths = [self.build_paths(readout_train_scenario, {'train': readout_train_scenario, 'test': readout_test_scenario}, 'readout') for readout_train_scenario, readout_test_scenario in zip(self.readout_train_scenarios, self.readout_test_scenarios)]
         else: # "minimal" protocal matches readout train scenario to pretraining train scenario
             pretrain_train_wo_suffix = pretraining_train_scenario.replace(self.get_setting('suffix', 'train', 'pretraining'), '', 1)
             assert pretrain_train_wo_suffix in self.readout_train_scenarios, '{} not in {}, but using "{}" readout protocol'.format(pretrain_train_wo_suffix, self.readout_train_scenarios, self.readout_protocol)
