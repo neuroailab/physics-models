@@ -105,7 +105,7 @@ class PretrainingObjective(FrozenModel, PretrainingObjectiveBase):
 
         val_res = {
             'val_loss': loss.item(),
-            'pred_state': pred_state.cpu(),
-            'next_state': next_state.cpu(),
+            'pred_state': pred_state.cpu().numpy(),
+            'next_state': next_state.cpu().numpy(),
         }
         return val_res
