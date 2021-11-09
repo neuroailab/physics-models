@@ -4,6 +4,7 @@ import yaml
 
 DEFAULTS = {
     'suffix': '',
+    'file_pattern': '*.hdf5',
 }
 
 class DataSpaceBuilder():

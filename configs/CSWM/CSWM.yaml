@@ -2,13 +2,19 @@ DATA_SPACE:
     MODULE: physion.data_space
     SEEDS: (0,1,2,3)
     KWARGS: 
-        pretraining_train_dir: 'curiophysion_train_data'
-        pretraining_test_dir: 'curiophysion_test_data'
-        pretraining_scenarios: ('support_interesting',)
-        pretraining_protocols: ('only',) 
-        readout_train_dir: 'physion_train_data/readout_training'
-        readout_test_dir: 'physion_test_data/model_testing'
-        readout_scenarios: ('Support_split',)
+        pretraining:
+            scenarios: ['support_interesting']
+            train:
+                dir: 'curiophysion_train_data'
+            test:
+                dir: 'curiophysion_test_data'
+        readout:
+            scenarios: ['Support_split']
+            train:
+                dir: 'physion_train_data/readout_training'
+            test:
+                dir: 'physion_test_data/model_testing'
+        pretraining_protocols: ['only']
         readout_protocol: 'full'
 
 PRETRAINING:
