@@ -1,0 +1,68 @@
+DATA_SPACE:
+    MODULE: physion.data_space
+    SEEDS: (0,)
+    KWARGS:
+        # scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
+        scenarios: ['Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
+        file_pattern: '*/*.h5'
+        pretraining:
+            train:
+                dir: 'dpi_net_data/train'
+            test:
+                dir: 'dpi_net_data/test'
+        readout:
+            dir: 'dpi_net_data/test'
+        pretraining_protocols: ['all']
+        readout_protocol: 'full'
+
+PRETRAINING:
+    OBJECTIVE_MODULE: physion.objective.DPINet
+    MODEL_NAME: 'DPINet'
+    TRAIN_STEPS: 100
+    BATCH_SIZE: 1
+    MODEL:
+        args:
+            noise_std: 3.e-4
+            state_dim: 6
+            position_dim: 3
+            attr_dim: 3
+            relation_dim: 1
+            nf_particle: 200
+            nf_relation: 300
+            nf_effect: 200
+            n_stages: 4
+            n_stages_types: ["leaf-leaf", "leaf-root", "root-root", "root-leaf"]
+            dt: 0.01
+            training_fpt: 3
+    TRAIN:
+        LR: 1.e-4
+        args:
+            verbose_model: 0
+            forward_times: 2
+            beta1: 0.9
+    DATA:
+        args:
+            augment_worldcoord: 0
+            statf: ''
+            env: 'TDWdominoes'
+            dt: 0.01
+            training_fpt: 3
+            time_step: 301
+            position_dim: 3
+            n_his: 0
+            noise_std: 3.e-4
+            verbose_data: 0
+            floor_cheat: 1
+            attr_dim: 3
+            pstep: 2
+            model_name: 'GNSRigidH'
+            neighbor_radius: 0.08
+            relation_dim: 1
+
+EXTRACTION:
+    OBJECTIVE_MODULE: physion.objective.DPINet
+
+CONFIG:
+    EXPERIMENT_NAME: 'physion'
+    POSTGRES:
+        DBNAME: 'physion-physopt'
