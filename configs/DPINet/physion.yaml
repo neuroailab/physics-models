@@ -3,7 +3,7 @@ DATA_SPACE:
     SEEDS: (0,)
     KWARGS:
         # scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
-        scenarios: ['Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
+        scenarios: ['Dominoes', 'Drape']
         file_pattern: '*/*.h5'
         pretraining:
             train:
@@ -46,7 +46,7 @@ PRETRAINING:
             statf: ''
             env: 'TDWdominoes'
             dt: 0.01
-            training_fpt: 3
+            training_fpt: 3 # subsampling
             time_step: 301
             position_dim: 3
             n_his: 0
@@ -58,6 +58,10 @@ PRETRAINING:
             model_name: 'GNSRigidH'
             neighbor_radius: 0.08
             relation_dim: 1
+
+            dpi_data_dir: '/mnt/fs4/eliwang/dpi_net_data'
+            subsample: 3000
+            shape_state_dim: 14 # [x, y, z, x_last, y_last, z_last, quat(4), quat_last(4)]
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.DPINet

@@ -1,14 +1,19 @@
+import os
+import pickle
 import numpy as np
+import scipy
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
+from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase, ReadoutObjectiveBase
 from physion.objective.objective import PytorchModel
 from physion.models.particle import GNSRigidH
-from physion.data.flexdata import PhysicsFleXDataset, collate_fn
+from physion.data.flexdata import PhysicsFleXDataset, collate_fn, load_data_dominoes, \
+    correct_bad_chair, remove_large_obstacles, subsample_particles_on_large_objects, \
+    recalculate_velocities, prepare_input
 
 use_gpu = torch.cuda.is_available()
 class DPINetModel(PytorchModel):
@@ -23,11 +28,18 @@ class DPINetModel(PytorchModel):
         checkpoint = torch.load(model_file)
         if "model_state_dict" in checkpoint:
             self.model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         else:
             self.model.load_state_dict(torch.load(model_file))
         return self.model
+
+    # def save_model(self, model_file): # TODO
+    #     logging.info(f'Saved model checkpoint to: {model_file}')
+    #     torch.save({'model_state_dict': self.model.state_dict(),
+    #                 'optimizer_state_dict': self.optimizer.state_dict(),
+    #                 'scheduler_state_dict': self.scheduler.state_dict()},
+    #                 model_file)
 
 class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
     def get_pretraining_dataloader(self, datapaths, train):
@@ -138,20 +150,237 @@ class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
         return {'val_loss': loss.item()}
 
 class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
-    def get_readout_dataprovider(self, datapaths):
-        datasets = {phase: PhysicsFleXDataset(
-            args, phase, phases_dict, args.verbose_data) for phase in ['train', 'valid']}
+    def get_readout_dataloader(self, datapaths):
+        args = self.pretraining_cfg.DATA.args
+        dataset = PhysicsFleXDataset(datapaths, args, 'valid', args.verbose_data)
+        dataloader = torch.utils.data.DataLoader(
+            dataset, batch_size=self.pretraining_cfg.BATCH_SIZE,
+            shuffle=False, collate_fn=collate_fn)
+        return dataloader
 
-        for phase in ['train', 'valid']:
-            datasets[phase].load_data(args.env)
-
-        dataloaders = {x: torch.utils.data.DataLoader(
-            datasets[x], batch_size=args.batch_size,
-            shuffle=True if x == 'train' else False,
-            #num_workers=args.num_workers,
-            collate_fn=collate_fn)
-            for x in ['train', 'valid']}
-        return 
-
-    def extract_feat_step(self, data):
+    def extract_feat_step(self): # hack since overriding 'call'
         pass
+
+    @staticmethod
+    def get_max_timestep(scenario):
+        if scenario == "Support":
+            max_timestep = 205
+        elif scenario == "Link":
+            max_timestep = 140
+        elif scenario == "Contain":
+            max_timestep = 125
+        elif scenario in ["Collide", "Drape"]:
+            max_timestep = 55
+        else:
+            max_timestep = 105
+        return max_timestep
+
+    def call(self, args):
+        self.model.eval()
+        scenario = self.readout_name
+        args = self.pretraining_cfg.DATA.args
+        dt = args.training_fpt * args.dt
+        accs = []
+
+        label_file = os.path.join(args.dpi_data_dir, 'test/labels', scenario + '.txt') # TODO: not robust
+        gt_labels = []
+        with open(label_file, "r") as f:
+            for line in f:
+                trial_name, label = line.strip().split(",")
+                gt_labels.append((trial_name[:-5], (label == "True")))
+
+        for trial_id, trial_cxt in enumerate(gt_labels):
+            print("Rollout %d / %d" % (trial_id, len(gt_labels)))
+
+            trial_name, label_gt = trial_cxt
+            trial_name = os.path.join(args.dpi_data_dir, 'test', scenario, trial_name)
+
+            gt_node_rs_idxs = []
+
+            time_step = len([file for file in os.listdir(trial_name) if file.endswith(".h5")])
+            timesteps  = [t for t in range(0, time_step - int(args.training_fpt), int(args.training_fpt))]
+
+            total_nframes = self.get_max_timestep(scenario) # TODO: dependent on fpt I think
+
+            pkl_path = os.path.join(trial_name, 'phases_dict.pkl')
+            with open(pkl_path, "rb") as f:
+                phases_dict = pickle.load(f)
+            phases_dict["trial_dir"] = trial_name
+
+            # get red_id and yellow_id
+            if scenario in ["Dominoes", "Collide", "Drop"]:
+                red_id = 1
+                yellow_id = 0
+            elif scenario in ["Drape"]:
+                instance_idx = phases_dict["instance_idx"]
+                yellow_id = 0
+                red_id = len(instance_idx) - 1 -1
+            elif scenario in ["Roll"]:
+                yellow_id = 0
+                if "ramp" in trial_name:
+                    red_id = 2
+                else:
+                    red_id = 1
+            else:
+                if "red_id" not in phases_dict:
+                    print(arg_name, trial_id_name)
+                red_id = phases_dict["red_id"]
+                yellow_id = phases_dict["yellow_id"]
+
+            is_bad_chair = correct_bad_chair(phases_dict)
+            is_remove_obstacles = remove_large_obstacles(phases_dict) # remove obstacles that are too big
+            is_subsample = subsample_particles_on_large_objects(phases_dict, limit=args.subsample) # downsample large object
+
+            pred_is_positive_trial = False
+            start_timestep = 45 # start_id * training_fpt
+            start_id = 15 
+            assert start_timestep == start_id * args.training_fpt
+            input_states = []
+            for current_fid, step in enumerate(timesteps[:start_id]):
+                data_path = os.path.join(trial_name, str(step) + '.h5')
+                data_nxt_path = os.path.join(trial_name, str(step + int(args.training_fpt)) + '.h5')
+
+                data_names = ['positions', 'velocities']
+                data = load_data_dominoes(data_names, data_path, phases_dict)
+
+                data_nxt = load_data_dominoes(data_names, data_nxt_path, phases_dict)
+
+                data_prev_path = os.path.join(trial_name, str(max(0, step - int(args.training_fpt))) + '.h5')
+                data_prev = load_data_dominoes(data_names, data_prev_path, phases_dict)
+
+                _, data, data_nxt = recalculate_velocities([data_prev, data, data_nxt], dt, data_names)
+
+                attr, state, rels, n_particles, n_shapes, instance_idx = \
+                        prepare_input(data, args, phases_dict, args.verbose_data)
+
+                Ra, node_r_idx, node_s_idx, pstep, rels_types = rels[3], rels[4], rels[5], rels[6], rels[7]
+                gt_node_rs_idxs.append(np.stack([rels[0][0][0], rels[1][0][0]], axis=1))
+
+                velocities_nxt = data_nxt[1]
+
+                if step == 0:
+                    positions, velocities = data
+                    clusters = phases_dict["clusters"]
+                    n_shapes = 0
+
+                    count_nodes = positions.shape[0]
+                    n_particles = count_nodes - n_shapes
+                    print("n_particles", n_particles)
+                    print("n_shapes", n_shapes)
+
+                    p_gt = np.zeros((total_nframes, n_particles + n_shapes, args.position_dim))
+                    s_gt = np.zeros((total_nframes, n_shapes, args.shape_state_dim))
+                    v_nxt_gt = np.zeros((total_nframes, n_particles + n_shapes, args.position_dim))
+
+                    p_pred = np.zeros((total_nframes, n_particles + n_shapes, args.position_dim))
+
+                p_gt[current_fid] = positions[:, -args.position_dim:]
+                v_nxt_gt[current_fid] = velocities_nxt[:, -args.position_dim:]
+
+                spacing = 0.05
+                positions = data[0]
+
+                st, ed = instance_idx[red_id], instance_idx[red_id + 1]
+                red_pts = positions[st:ed]
+
+                st2, ed2 = instance_idx[yellow_id], instance_idx[yellow_id + 1]
+                yellow_pts = positions[st2:ed2]
+
+                input_states.append([red_pts, yellow_pts])
+
+            # model rollout
+            data_path = os.path.join(trial_name, f'{start_timestep}.h5')
+            data = load_data_dominoes(data_names, data_path, phases_dict)
+            data_path_prev = os.path.join(trial_name, f'{int(start_timestep - args.training_fpt)}.h5')
+            data_prev = load_data_dominoes(data_names, data_path_prev, phases_dict)
+            _, data = recalculate_velocities([data_prev, data], dt, data_names)
+
+            simulated_states = []
+            for current_fid in range(total_nframes - start_id):
+                if pred_is_positive_trial:
+                    break
+
+                p_pred[start_id + current_fid] = data[0]
+
+                attr, state, rels, n_particles, n_shapes, instance_idx = \
+                        prepare_input(data, args, phases_dict, args.verbose_data)
+
+                Ra, node_r_idx, node_s_idx, pstep, rels_types = rels[3], rels[4], rels[5], rels[6], rels[7]
+
+                Rr, Rs, Rr_idxs = [], [], []
+                for j in range(len(rels[0])):
+                    Rr_idx, Rs_idx, values = rels[0][j], rels[1][j], rels[2][j]
+                    Rr_idxs.append(Rr_idx)
+                    Rr.append(torch.sparse.FloatTensor(
+                        Rr_idx, values, torch.Size([node_r_idx[j].shape[0], Ra[j].size(0)])))
+                    Rs.append(torch.sparse.FloatTensor(
+                        Rs_idx, values, torch.Size([node_s_idx[j].shape[0], Ra[j].size(0)])))
+
+                buf = [attr, state, Rr, Rs, Ra, Rr_idxs]
+
+                with torch.set_grad_enabled(False):
+                    if use_gpu:
+                        for d in range(len(buf)):
+                            if type(buf[d]) == list:
+                                for t in range(len(buf[d])):
+                                    buf[d][t] = Variable(buf[d][t].cuda())
+                            else:
+                                buf[d] = Variable(buf[d].cuda())
+                    else:
+                        for d in range(len(buf)):
+                            if type(buf[d]) == list:
+                                for t in range(len(buf[d])):
+                                    buf[d][t] = Variable(buf[d][t])
+                            else:
+                                buf[d] = Variable(buf[d])
+
+                    attr, state, Rr, Rs, Ra, Rr_idxs = buf
+                    vels = self.model(
+                        attr, state, Rr, Rs, Ra, Rr_idxs, n_particles,
+                        node_r_idx, node_s_idx, pstep, rels_types,
+                        instance_idx, phases_dict, self.pretraining_cfg.TRAIN.args.verbose_model)
+
+                vels = vels.cpu().numpy()
+                data[0] = data[0] + (vels * dt)
+                data[1][:, :args.position_dim] = vels
+
+                spacing = 0.05
+                positions = data[0]
+
+                st, ed = instance_idx[red_id], instance_idx[red_id + 1]
+                red_pts = positions[st:ed]
+
+                st2, ed2 = instance_idx[yellow_id], instance_idx[yellow_id + 1]
+                yellow_pts = positions[st2:ed2]
+
+                simulated_states.append([red_pts, yellow_pts])
+
+        output = {
+            'input_states': input_states,
+            'observed_states': None,
+            'simulated_states': simulated_states,
+            'labels': labels,
+            'stimulus_name': stimulus_name,
+            }
+        return output
+
+class ReadoutObjective(ReadoutObjectiveBase):
+    def get_readout_model(self):
+        pass
+
+    def call(self, args):
+        for yellow_pts, red_pts in simulated_states:
+            sim_mat = scipy.spatial.distance_matrix(yellow_pts, red_pts, p=2)
+            min_dist= np.min(sim_mat)
+
+            if "Drape" in scenario:
+                thres = 0.1222556027835 * 0.05/0.035
+            elif "Contain" in scenario:
+                thres = spacing * 1.0
+            elif "Drop" in scenario:
+                thres = spacing * 1.0
+            else:
+                thres = spacing * 1.5
+            pred_target_contacting_zone = min_dist < thres
+            if pred_target_contacting_zone:
+                pred_is_positive_trial = True
