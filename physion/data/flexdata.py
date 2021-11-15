@@ -241,7 +241,7 @@ def recalculate_velocities(list_of_data, dt, data_names):
     return output_list_of_data
 
 def remove_large_obstacles(phases_dict):
-    if phases_dict["n_particles"] > 2000:
+    if phases_dict["n_particles"] > 3000:
         #critical_objects = [b'cube', b'sphere', b'cone', b'torus', b'cylinder']
         #print(np.array(phases_dict["instance_idx"][1:]) - np.array(phases_dict["instance_idx"][:-1]))
 
