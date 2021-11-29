@@ -835,7 +835,6 @@ class PhysicsFleXDataset(Dataset):
 
     def __init__(self, datapaths, args, phase, verbose):
         self.args = args
-        self.phase = phase
         self.verbose = verbose
         self.augment_coord = self.args.augment_worldcoord
 

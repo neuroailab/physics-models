@@ -3,7 +3,7 @@ DATA_SPACE:
     SEEDS: (0,)
     KWARGS:
         # scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
-        scenarios: ['Dominoes', 'Drape']
+        scenarios: ['Dominoes']
         file_pattern: '*/*.h5'
         pretraining:
             train:
@@ -12,13 +12,14 @@ DATA_SPACE:
                 dir: 'dpi_net_data/test'
         readout:
             dir: 'dpi_net_data/test'
-        pretraining_protocols: ['all']
+        # pretraining_protocols: ['all']
+        pretraining_protocols: ['only']
         readout_protocol: 'full'
 
 PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.DPINet
     MODEL_NAME: 'DPINet'
-    TRAIN_STEPS: 100
+    TRAIN_STEPS: 10000000
     BATCH_SIZE: 1
     MODEL:
         args:
@@ -65,6 +66,10 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.DPINet
+
+READOUT:
+    OBJECTIVE_MODULE: physion.objective.DPINet
+    OBJECTIVE_NAME: 'ReadoutObjective'
 
 CONFIG:
     EXPERIMENT_NAME: 'physion'

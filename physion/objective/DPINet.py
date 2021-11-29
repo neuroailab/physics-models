@@ -2,6 +2,9 @@ import os
 import pickle
 import numpy as np
 import scipy
+import logging
+import mlflow
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -44,10 +47,12 @@ class DPINetModel(PytorchModel):
 class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
     def get_pretraining_dataloader(self, datapaths, train):
         args = self.pretraining_cfg.DATA.args
-        dataset = PhysicsFleXDataset(datapaths, args, 'train', args.verbose_data)
+        shuffle = True if train else False
+        phase = 'train' if train else 'valid'
+        dataset = PhysicsFleXDataset(datapaths, args, phase, args.verbose_data)
         dataloader = torch.utils.data.DataLoader(
             dataset, batch_size=self.pretraining_cfg.BATCH_SIZE,
-            shuffle=True, collate_fn=collate_fn)
+            shuffle=shuffle, collate_fn=collate_fn)
         return dataloader
 
     def train_step(self, data):
@@ -189,10 +194,17 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 trial_name, label = line.strip().split(",")
                 gt_labels.append((trial_name[:-5], (label == "True")))
 
+        labels = []
+        stimulus_name = []
+        input_states = []
+        simulated_states = []
         for trial_id, trial_cxt in enumerate(gt_labels):
             print("Rollout %d / %d" % (trial_id, len(gt_labels)))
 
             trial_name, label_gt = trial_cxt
+            stimulus_name.append(trial_name)
+            labels.append(label_gt)
+            print(f'Trial name: {trial_name} ({label_gt})')
             trial_name = os.path.join(args.dpi_data_dir, 'test', scenario, trial_name)
 
             gt_node_rs_idxs = []
@@ -235,7 +247,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             start_timestep = 45 # start_id * training_fpt
             start_id = 15 
             assert start_timestep == start_id * args.training_fpt
-            input_states = []
+            input_state = []
             for current_fid, step in enumerate(timesteps[:start_id]):
                 data_path = os.path.join(trial_name, str(step) + '.h5')
                 data_nxt_path = os.path.join(trial_name, str(step + int(args.training_fpt)) + '.h5')
@@ -277,7 +289,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 p_gt[current_fid] = positions[:, -args.position_dim:]
                 v_nxt_gt[current_fid] = velocities_nxt[:, -args.position_dim:]
 
-                spacing = 0.05
                 positions = data[0]
 
                 st, ed = instance_idx[red_id], instance_idx[red_id + 1]
@@ -286,7 +297,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 st2, ed2 = instance_idx[yellow_id], instance_idx[yellow_id + 1]
                 yellow_pts = positions[st2:ed2]
 
-                input_states.append([red_pts, yellow_pts])
+                input_state.append([red_pts, yellow_pts])
 
             # model rollout
             data_path = os.path.join(trial_name, f'{start_timestep}.h5')
@@ -295,7 +306,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             data_prev = load_data_dominoes(data_names, data_path_prev, phases_dict)
             _, data = recalculate_velocities([data_prev, data], dt, data_names)
 
-            simulated_states = []
+            simulated_state = []
             for current_fid in range(total_nframes - start_id):
                 if pred_is_positive_trial:
                     break
@@ -344,7 +355,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 data[0] = data[0] + (vels * dt)
                 data[1][:, :args.position_dim] = vels
 
-                spacing = 0.05
                 positions = data[0]
 
                 st, ed = instance_idx[red_id], instance_idx[red_id + 1]
@@ -353,7 +363,10 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 st2, ed2 = instance_idx[yellow_id], instance_idx[yellow_id + 1]
                 yellow_pts = positions[st2:ed2]
 
-                simulated_states.append([red_pts, yellow_pts])
+                simulated_state.append([red_pts, yellow_pts])
+
+            input_states.append(input_state)
+            simulated_states.append(simulated_state)
 
         output = {
             'input_states': input_states,
@@ -362,25 +375,46 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             'labels': labels,
             'stimulus_name': stimulus_name,
             }
-        return output
+        feature_file = os.path.join(self.output_dir, 'test_feat.pkl')
+        pickle.dump(output, open(feature_file, 'wb'))
+        logging.info('Saved features to {}'.format(feature_file))
+        mlflow.log_artifact(feature_file, artifact_path=f'features')
 
 class ReadoutObjective(ReadoutObjectiveBase):
     def get_readout_model(self):
         pass
 
-    def call(self, args):
-        for yellow_pts, red_pts in simulated_states:
-            sim_mat = scipy.spatial.distance_matrix(yellow_pts, red_pts, p=2)
-            min_dist= np.min(sim_mat)
+    @staticmethod
+    def get_thres(scenario):
+        spacing = 0.05 # TODO: make arg
+        if "Drape" in scenario:
+            thres = 0.1222556027835 * 0.05/0.035
+        elif "Contain" in scenario:
+            thres = spacing * 1.0
+        elif "Drop" in scenario:
+            thres = spacing * 1.0
+        else:
+            thres = spacing * 1.5
+        return thres
 
-            if "Drape" in scenario:
-                thres = 0.1222556027835 * 0.05/0.035
-            elif "Contain" in scenario:
-                thres = spacing * 1.0
-            elif "Drop" in scenario:
-                thres = spacing * 1.0
-            else:
-                thres = spacing * 1.5
-            pred_target_contacting_zone = min_dist < thres
-            if pred_target_contacting_zone:
-                pred_is_positive_trial = True
+    def call(self, args):
+        features = pickle.load(open(self.test_feature_file, 'rb'))
+        thres = self.get_thres(self.readout_name)
+        
+        print(len(features['simulated_states']))
+        accs = []
+        for label, simulated_state in zip(features['labels'], features['simulated_states']):
+            print(len(simulated_state))
+            print(f'Yellow shape: {simulated_state[0][0].shape}')
+            print(f'Red shape: {simulated_state[0][1].shape}')
+            pred_is_positive_trial = False
+            for yellow_pts, red_pts in simulated_state:
+                sim_mat = scipy.spatial.distance_matrix(yellow_pts, red_pts, p=2)
+                min_dist= np.min(sim_mat)
+
+                pred_target_contacting_zone = min_dist < thres
+                if pred_target_contacting_zone:
+                    pred_is_positive_trial = True
+                    break
+            accs.append(pred_is_positive_trial==label)
+        mlflow.log_metric('test_acc_simulated', np.mean(accs), step=self.restore_step)
