@@ -34,7 +34,7 @@ class DPINetModel(PytorchModel):
             if hasattr(self, attr) and attr+'_state_dict' in checkpoint:
                 getattr(self, attr).load_state_dict(checkpoint[attr+'_state_dict'])
             else:
-                raise AttributeError(attr)
+                logging.info(f'Not loading {attr}')
         return self.model
 
     def save_model(self, model_file):
