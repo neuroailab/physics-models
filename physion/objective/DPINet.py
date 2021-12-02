@@ -29,20 +29,20 @@ class DPINetModel(PytorchModel):
 
     def load_model(self, model_file):
         checkpoint = torch.load(model_file)
-        if "model_state_dict" in checkpoint:
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        else:
-            self.model.load_state_dict(torch.load(model_file))
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        for attr in ['optimizer', 'scheduler']:
+            if hasattr(self, attr) and attr+'_state_dict' in checkpoint:
+                getattr(self, attr).load_state_dict(checkpoint[attr+'_state_dict'])
+            else:
+                raise AttributeError(attr)
         return self.model
 
-    # def save_model(self, model_file): # TODO
-    #     logging.info(f'Saved model checkpoint to: {model_file}')
-    #     torch.save({'model_state_dict': self.model.state_dict(),
-    #                 'optimizer_state_dict': self.optimizer.state_dict(),
-    #                 'scheduler_state_dict': self.scheduler.state_dict()},
-    #                 model_file)
+    def save_model(self, model_file):
+        logging.info(f'Saved model checkpoint to: {model_file}')
+        torch.save({'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    'scheduler_state_dict': self.scheduler.state_dict()},
+                    model_file)
 
 class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
     def get_pretraining_dataloader(self, datapaths, train):
@@ -53,16 +53,19 @@ class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
         dataloader = torch.utils.data.DataLoader(
             dataset, batch_size=self.pretraining_cfg.BATCH_SIZE,
             shuffle=shuffle, collate_fn=collate_fn)
+        logging.info(f'Pretraining {phase} dataloader len: {len(dataloader)}')
         return dataloader
+
+    def setup(self):
+        super().setup()
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR, betas=(self.pretraining_cfg.TRAIN.args.beta1, 0.999))
+        self.scheduler = ReduceLROnPlateau(self.optimizer, 'min', factor=0.8, patience=3, verbose=True) # TODO: step scheduler at every epoch
+        self.criterionMSE = nn.MSELoss()
 
     def train_step(self, data):
         args = self.pretraining_cfg.TRAIN.args
-        optimizer = optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR, betas=(args.beta1, 0.999))
-        optimizer.zero_grad()
-        scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.8, patience=3, verbose=True)
-        criterionMSE = nn.MSELoss()
-
         self.model.train()
+        self.optimizer.zero_grad()
         attr, state, rels, n_particles, n_shapes, instance_idx, label, phases_dict_current= data
         Ra, node_r_idx, node_s_idx, pstep, rels_types = rels[3], rels[4], rels[5], rels[6], rels[7]
         Rr, Rs, Rr_idxs = [], [], []
@@ -96,21 +99,18 @@ class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
 
             attr, state, Rr, Rs, Ra, Rr_idxs, label = data
 
-            # st_time = time.time()
             predicted = self.model(
                 attr, state, Rr, Rs, Ra, Rr_idxs, n_particles,
                 node_r_idx, node_s_idx, pstep, rels_types,
                 instance_idx, phases_dict_current, args.verbose_model)
 
-        loss = criterionMSE(predicted, label) / args.forward_times
+        loss = self.criterionMSE(predicted, label) / args.forward_times
         loss.backward()
-        optimizer.step()
+        self.optimizer.step()
         return loss.item()
 
     def val_step(self, data):
         args = self.pretraining_cfg.TRAIN.args
-        criterionMSE = nn.MSELoss()
-
         self.model.train(False)
         attr, state, rels, n_particles, n_shapes, instance_idx, label, phases_dict_current= data
         Ra, node_r_idx, node_s_idx, pstep, rels_types = rels[3], rels[4], rels[5], rels[6], rels[7]
@@ -151,7 +151,7 @@ class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
                 node_r_idx, node_s_idx, pstep, rels_types,
                 instance_idx, phases_dict_current, args.verbose_model)
 
-        loss = criterionMSE(predicted, label) / args.forward_times
+        loss = self.criterionMSE(predicted, label) / args.forward_times
         return {'val_loss': loss.item()}
 
 class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
@@ -272,19 +272,14 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 if step == 0:
                     positions, velocities = data
-                    clusters = phases_dict["clusters"]
-                    n_shapes = 0
-
-                    count_nodes = positions.shape[0]
-                    n_particles = count_nodes - n_shapes
+                    n_particles = positions.shape[0]
                     print("n_particles", n_particles)
-                    print("n_shapes", n_shapes)
+                    clusters = phases_dict["clusters"]
 
-                    p_gt = np.zeros((total_nframes, n_particles + n_shapes, args.position_dim))
-                    s_gt = np.zeros((total_nframes, n_shapes, args.shape_state_dim))
-                    v_nxt_gt = np.zeros((total_nframes, n_particles + n_shapes, args.position_dim))
+                    p_gt = np.zeros((total_nframes, n_particles, args.position_dim))
+                    v_nxt_gt = np.zeros((total_nframes, n_particles, args.position_dim))
 
-                    p_pred = np.zeros((total_nframes, n_particles + n_shapes, args.position_dim))
+                    p_pred = np.zeros((total_nframes, n_particles, args.position_dim))
 
                 p_gt[current_fid] = positions[:, -args.position_dim:]
                 v_nxt_gt[current_fid] = velocities_nxt[:, -args.position_dim:]

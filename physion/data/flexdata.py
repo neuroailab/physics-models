@@ -848,18 +848,11 @@ class PhysicsFleXDataset(Dataset):
             path = os.path.dirname(path)
             files = sorted(glob.glob(path))
             self.all_trials.extend(files)
-        fp = os.path.basename(path)
         self.n_rollout = len(self.all_trials)
-        print(self.n_rollout)
-
-        if phase == "train":
-            self.mean_time_step = int(13499/self.n_rollout) + 1
-        else:
-            self.mean_time_step = 1
 
     def __len__(self):
         # each rollout can have different length, sample length in get_item
-        return self.n_rollout * self.mean_time_step
+        return self.n_rollout 
 
     def augment_worldcoord(self, list_of_data):
         """
