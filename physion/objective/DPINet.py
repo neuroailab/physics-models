@@ -4,6 +4,8 @@ import numpy as np
 import scipy
 import logging
 import mlflow
+import cv2
+import vispy.scene
 
 import torch
 import torch.nn as nn
@@ -167,7 +169,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
         pass
 
     @staticmethod
-    def get_max_timestep(scenario):
+    def get_max_timestep(scenario): # TODO: dependent on fpt I think
         if scenario == "Support":
             max_timestep = 205
         elif scenario == "Link":
@@ -208,11 +210,12 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             trial_name = os.path.join(args.dpi_data_dir, 'test', scenario, trial_name)
 
             gt_node_rs_idxs = []
+            node_rs_idxs = []
 
             time_step = len([file for file in os.listdir(trial_name) if file.endswith(".h5")])
             timesteps  = [t for t in range(0, time_step - int(args.training_fpt), int(args.training_fpt))]
 
-            total_nframes = self.get_max_timestep(scenario) # TODO: dependent on fpt I think
+            total_nframes = self.get_max_timestep(scenario)
 
             pkl_path = os.path.join(trial_name, 'phases_dict.pkl')
             with open(pkl_path, "rb") as f:
@@ -242,6 +245,37 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             is_bad_chair = correct_bad_chair(phases_dict)
             is_remove_obstacles = remove_large_obstacles(phases_dict) # remove obstacles that are too big
             is_subsample = subsample_particles_on_large_objects(phases_dict, limit=args.subsample) # downsample large object
+
+            particle_size = 6.0
+            n_instance = 5 #args.n_instance
+            c = vispy.scene.SceneCanvas(keys='interactive', show=True, bgcolor='white')
+            view = c.central_widget.add_view()
+            if "Collide" in trial_name:
+                distance = 6.0
+            elif "Support" in trial_name:
+                distance = 6.0 #6.0
+            elif "Link" in trial_name:
+                distance = 10.0
+            elif "Drop" in trial_name:
+                distance = 5.0
+            elif "Drape" in trial_name:
+                distance = 5.0
+            else:
+                distance = 3.0
+            view.camera = vispy.scene.cameras.TurntableCamera(fov=50, azimuth=80, elevation=30, distance=distance, up='+y')
+            n_instance = len(phases_dict["instance"])
+            instance_colors = create_instance_colors(n_instance)
+            add_floor(view)
+            p1 = vispy.scene.visuals.Markers()
+            p1.antialias = 0  # remove white edge
+            floor_pos = np.array([[0, -0.5, 0]])
+            line = vispy.scene.visuals.Line() 
+            view.add(p1)
+            view.add(line)
+
+            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+            vid_path = os.path.join(self.output_dir, f'vispy_{trial_id}.avi')
+            out = cv2.VideoWriter(vid_path, fourcc, 20, (800, 600))
 
             pred_is_positive_trial = False
             start_timestep = 45 # start_id * training_fpt
@@ -294,6 +328,17 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 input_state.append([red_pts, yellow_pts])
 
+                colors = convert_groups_to_colors(
+                    phases_dict["instance_idx"],
+                    instance_colors=instance_colors, env=args.env)
+
+                colors = np.clip(colors, 0., 1.)
+                n_particle = phases_dict["instance_idx"][-1]
+                p1.set_data(p_gt[current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
+                line.set_data(pos=np.concatenate([p_gt[current_fid, :], floor_pos], axis=0), connect=gt_node_rs_idxs[current_fid])
+                img = c.render()
+                out.write(img[:,:,:3])
+
             # model rollout
             data_path = os.path.join(trial_name, f'{start_timestep}.h5')
             data = load_data_dominoes(data_names, data_path, phases_dict)
@@ -312,6 +357,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                         prepare_input(data, args, phases_dict, args.verbose_data)
 
                 Ra, node_r_idx, node_s_idx, pstep, rels_types = rels[3], rels[4], rels[5], rels[6], rels[7]
+                node_rs_idxs.append(np.stack([rels[0][0][0], rels[1][0][0]], axis=1))
 
                 Rr, Rs, Rr_idxs = [], [], []
                 for j in range(len(rels[0])):
@@ -360,9 +406,22 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 simulated_state.append([red_pts, yellow_pts])
 
+                colors = convert_groups_to_colors(
+                    phases_dict["instance_idx"],
+                    instance_colors=instance_colors, env=args.env)
+
+                colors = np.clip(colors, 0., 1.)
+                n_particle = phases_dict["instance_idx"][-1]
+                p1.set_data(p_pred[start_id+current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
+                line.set_data(pos=np.concatenate([p_pred[start_id+current_fid, :], floor_pos], axis=0), connect=node_rs_idxs[current_fid])
+                img = c.render()
+                out.write(img[:,:,:3])
+
             input_states.append(input_state)
             simulated_states.append(simulated_state)
 
+            out.release()
+            mlflow.log_artifact(vid_path, artifact_path='videos')
         output = {
             'input_states': input_states,
             'observed_states': None,
@@ -413,3 +472,69 @@ class ReadoutObjective(ReadoutObjectiveBase):
                     break
             accs.append(pred_is_positive_trial==label)
         mlflow.log_metric('test_acc_simulated', np.mean(accs), step=self.restore_step)
+
+def add_floor(v):
+    # add floor
+    floor_thickness = 0.025
+    floor_length = 8.0
+    w, h, d = floor_length, floor_length, floor_thickness
+    b1 = vispy.scene.visuals.Box(width=w, height=h, depth=d, color=[0.8, 0.8, 0.8, 1], edge_color='black')
+    #y_rotate(b1)
+    v.add(b1)
+
+    # adjust position of box
+    mesh_b1 = b1.mesh.mesh_data
+    v1 = mesh_b1.get_vertices()
+    c1 = np.array([0., -floor_thickness*0.5, 0.], dtype=np.float32)
+    mesh_b1.set_vertices(np.add(v1, c1))
+
+    mesh_border_b1 = b1.border.mesh_data
+    vv1 = mesh_border_b1.get_vertices()
+    cc1 = np.array([0., -floor_thickness*0.5, 0.], dtype=np.float32)
+    mesh_border_b1.set_vertices(np.add(vv1, cc1))
+
+def create_instance_colors(n):
+    # TODO: come up with a better way to initialize instance colors
+    return np.array([
+        [1., 1., 0., 1.],
+        #[1., 0., 0., 1.],
+        [0., 1., 0., 1.],
+        [0., 0., 1., 1.],
+        [1., 0., 1., 1.],
+        [0., 1., 1., 1.],
+        [1., 0., 0., 1.],
+        [1., 1., 1., 1.],
+        [1., 0.5, 0.5, 1.],
+        [0.5, 0.5, 1., 1.],
+        [0.5, 1., 0.5, 1.],
+        [1., 0.25, 0.25, 1.],
+        [0.25, 1., 0.25, 1.],
+        [0.25, 0.25, 1., 1.],
+        [0.25, 0.1, 1., 1.],
+        [0.25, 0.1, 0.1, 1.],
+        [0.1, 0.1, 1., 1.],])[:n]
+
+
+def convert_groups_to_colors(group, instance_colors, env=None):
+    """
+    Convert grouping to RGB colors of shape (n_particles, 4)
+    :param grouping: [p_rigid, p_instance, physics_param]
+    :return: RGB values that can be set as color densities
+    group: [0, 1024, 1032]
+    """
+    # p_rigid: n_instance
+    # p_instance: n_p x n_instance
+    n_instance = len(group) - 1
+    n_particles = group[-1]
+
+    #p_rigid, p_instance = group[:2]
+    #p = p_instance
+
+    colors = np.empty((n_particles, 4))
+
+    for instance_id in range(n_instance):
+        st, end = group[instance_id], group[instance_id+1]
+        colors[st:end] = instance_colors[instance_id]
+
+    # print("colors", colors)
+    return colors
