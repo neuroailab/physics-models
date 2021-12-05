@@ -274,8 +274,10 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             view.add(line)
 
             fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-            vid_path = os.path.join(self.output_dir, f'vispy_{trial_id}.avi')
-            out = cv2.VideoWriter(vid_path, fourcc, 20, (800, 600))
+            gt_vid_path = os.path.join(self.output_dir, f'gt_{trial_id}.avi')
+            gt_out = cv2.VideoWriter(gt_vid_path, fourcc, 20, (800, 600))
+            pred_vid_path = os.path.join(self.output_dir, f'pred_{trial_id}.avi')
+            pred_out = cv2.VideoWriter(pred_vid_path, fourcc, 20, (800, 600))
 
             pred_is_positive_trial = False
             start_timestep = 45 # start_id * training_fpt
@@ -330,14 +332,73 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 colors = convert_groups_to_colors(
                     phases_dict["instance_idx"],
-                    instance_colors=instance_colors, env=args.env)
+                    instance_colors=instance_colors)
 
                 colors = np.clip(colors, 0., 1.)
                 n_particle = phases_dict["instance_idx"][-1]
                 p1.set_data(p_gt[current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
                 line.set_data(pos=np.concatenate([p_gt[current_fid, :], floor_pos], axis=0), connect=gt_node_rs_idxs[current_fid])
                 img = c.render()
-                out.write(img[:,:,:3])
+                gt_out.write(img[:,:,:3])
+                pred_out.write(img[:,:,:3])
+
+            # gt rollout
+            for current_fid, step in enumerate(timesteps[start_id:]):
+                data_path = os.path.join(trial_name, str(step) + '.h5')
+                data_nxt_path = os.path.join(trial_name, str(step + int(args.training_fpt)) + '.h5')
+
+                data_names = ['positions', 'velocities']
+                data = load_data_dominoes(data_names, data_path, phases_dict)
+
+                data_nxt = load_data_dominoes(data_names, data_nxt_path, phases_dict)
+
+                data_prev_path = os.path.join(trial_name, str(max(0, step - int(args.training_fpt))) + '.h5')
+                data_prev = load_data_dominoes(data_names, data_prev_path, phases_dict)
+
+                _, data, data_nxt = recalculate_velocities([data_prev, data, data_nxt], dt, data_names)
+
+                attr, state, rels, n_particles, n_shapes, instance_idx = \
+                        prepare_input(data, args, phases_dict, args.verbose_data)
+
+                Ra, node_r_idx, node_s_idx, pstep, rels_types = rels[3], rels[4], rels[5], rels[6], rels[7]
+                gt_node_rs_idxs.append(np.stack([rels[0][0][0], rels[1][0][0]], axis=1))
+
+                velocities_nxt = data_nxt[1]
+
+                if step == 0:
+                    positions, velocities = data
+                    n_particles = positions.shape[0]
+                    print("n_particles", n_particles)
+                    clusters = phases_dict["clusters"]
+
+                    p_gt = np.zeros((total_nframes, n_particles, args.position_dim))
+                    v_nxt_gt = np.zeros((total_nframes, n_particles, args.position_dim))
+
+                    p_pred = np.zeros((total_nframes, n_particles, args.position_dim))
+
+                p_gt[current_fid] = positions[:, -args.position_dim:]
+                v_nxt_gt[current_fid] = velocities_nxt[:, -args.position_dim:]
+
+                positions = data[0]
+
+                st, ed = instance_idx[red_id], instance_idx[red_id + 1]
+                red_pts = positions[st:ed]
+
+                st2, ed2 = instance_idx[yellow_id], instance_idx[yellow_id + 1]
+                yellow_pts = positions[st2:ed2]
+
+                input_state.append([red_pts, yellow_pts])
+
+                colors = convert_groups_to_colors(
+                    phases_dict["instance_idx"],
+                    instance_colors=instance_colors)
+
+                colors = np.clip(colors, 0., 1.)
+                n_particle = phases_dict["instance_idx"][-1]
+                p1.set_data(p_gt[current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
+                line.set_data(pos=np.concatenate([p_gt[current_fid, :], floor_pos], axis=0), connect=gt_node_rs_idxs[current_fid])
+                img = c.render()
+                gt_out.write(img[:,:,:3])
 
             # model rollout
             data_path = os.path.join(trial_name, f'{start_timestep}.h5')
@@ -408,20 +469,22 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 colors = convert_groups_to_colors(
                     phases_dict["instance_idx"],
-                    instance_colors=instance_colors, env=args.env)
+                    instance_colors=instance_colors)
 
                 colors = np.clip(colors, 0., 1.)
                 n_particle = phases_dict["instance_idx"][-1]
                 p1.set_data(p_pred[start_id+current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
                 line.set_data(pos=np.concatenate([p_pred[start_id+current_fid, :], floor_pos], axis=0), connect=node_rs_idxs[current_fid])
                 img = c.render()
-                out.write(img[:,:,:3])
+                pred_out.write(img[:,:,:3])
 
             input_states.append(input_state)
             simulated_states.append(simulated_state)
 
-            out.release()
-            mlflow.log_artifact(vid_path, artifact_path='videos')
+            gt_out.release()
+            pred_out.release()
+            mlflow.log_artifact(gt_vid_path, artifact_path='videos')
+            mlflow.log_artifact(pred_vid_path, artifact_path='videos')
         output = {
             'input_states': input_states,
             'observed_states': None,
@@ -515,7 +578,7 @@ def create_instance_colors(n):
         [0.1, 0.1, 1., 1.],])[:n]
 
 
-def convert_groups_to_colors(group, instance_colors, env=None):
+def convert_groups_to_colors(group, instance_colors):
     """
     Convert grouping to RGB colors of shape (n_particles, 4)
     :param grouping: [p_rigid, p_instance, physics_param]
