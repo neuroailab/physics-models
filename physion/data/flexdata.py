@@ -476,7 +476,7 @@ def find_relations_neighbor(positions, query_idx, anchor_idx, radius, order, var
     return relations
 
 
-def make_hierarchy(env, attr, positions, velocities, idx, st, ed, phases_dict, count_nodes, clusters, verbose=0, var=False):
+def make_hierarchy(attr, positions, velocities, idx, st, ed, phases_dict, count_nodes, clusters, verbose=0, var=False):
     order = 2
     n_root_level = len(phases_dict["root_num"][idx])
     attr, relations, relations_types, node_r_idx, node_s_idx, pstep = [attr], [], [], [], [], []
@@ -625,25 +625,20 @@ def prepare_input(data, args, phases_dict, verbose=0, var=False):
 
     # Arrangement:
     # particles, shapes, roots
-    if args.env == "TDWdominoes":
-        # attributes:
-        # [1, 0, 0]: water particle
-        # [0, 1, 0]: rigid particle
-        # [0, 0, 1]: whole floor node
-        # [x, x, 1]: parent node
-        positions, velocities = data
-        clusters = phases_dict["clusters"]
-        n_shapes = 0
+    # attributes:
+    # [1, 0, 0]: water particle
+    # [0, 1, 0]: rigid particle
+    # [0, 0, 1]: whole floor node
+    # [x, x, 1]: parent node
+    positions, velocities = data
+    clusters = phases_dict["clusters"]
+    n_shapes = 0
 
-        if args.floor_cheat:
-            # add the floor node
-            n_shapes = 1
-            positions = np.concatenate([positions, np.zeros((1,3))], axis=0)
-            velocities = np.concatenate([velocities, np.zeros((1,3))], axis=0)
-
-    else:
-        raise ValueError
-
+    if args.floor_cheat:
+        # add the floor node
+        n_shapes = 1
+        positions = np.concatenate([positions, np.zeros((1,3))], axis=0)
+        velocities = np.concatenate([velocities, np.zeros((1,3))], axis=0)
 
     count_nodes = positions.size(0) if var else positions.shape[0]
     n_particles = count_nodes - n_shapes
@@ -679,8 +674,7 @@ def prepare_input(data, args, phases_dict, verbose=0, var=False):
     ##### add env specific graph components
     rels = []
     rels_types = []
-    if args.env == "TDWdominoes" and args.floor_cheat:
-
+    if args.floor_cheat:
         pos = positions.data.cpu().numpy() if var else positions
         dis = pos[:n_particles, 1] - 0
 
@@ -692,9 +686,8 @@ def prepare_input(data, args, phases_dict, verbose=0, var=False):
     if verbose and len(rels) > 0:
         print(np.concatenate(rels, 0).shape)
 
-    if args.env == "TDWdominoes":
-        nobjs = len(instance_idx) - 1
-        phases_dict["root_pstep"] = [[args.pstep]]*nobjs
+    nobjs = len(instance_idx) - 1
+    phases_dict["root_pstep"] = [[args.pstep]]*nobjs
 
     ##### add relations between leaf particles
 
@@ -713,22 +706,17 @@ def prepare_input(data, args, phases_dict, verbose=0, var=False):
             if verbose:
                 print('instance #%d' % i, st, ed)
 
-            if args.env == "TDWdominoes":
-                if phases_dict['material'][i] == 'rigid':
-                    attr[st:ed, 0] = 1
-                    queries = np.arange(st, ed)
-                    anchors = np.concatenate((np.arange(st), np.arange(ed, n_particles)))
-                elif phases_dict['material'][i] == 'fluid' or phases_dict['material'][i] == 'cloth' :
-                    attr[st:ed, 1] = 1
-                    queries = np.arange(st, ed)
-                    anchors = np.arange(n_particles)
-                else:
-                    raise AssertionError("Unsupported materials")
-
+            if phases_dict['material'][i] == 'rigid':
+                attr[st:ed, 0] = 1
+                queries = np.arange(st, ed)
+                anchors = np.concatenate((np.arange(st), np.arange(ed, n_particles)))
+            elif phases_dict['material'][i] == 'fluid' or phases_dict['material'][i] == 'cloth' :
+                attr[st:ed, 1] = 1
+                queries = np.arange(st, ed)
+                anchors = np.arange(n_particles)
             else:
                 raise AssertionError("Unsupported materials")
 
-            # st_time = time.time()
             pos = positions
             pos = pos[:, -3:]
             rels += find_relations_neighbor(pos, queries, anchors, args.neighbor_radius, 2, var)
@@ -768,7 +756,7 @@ def prepare_input(data, args, phases_dict, verbose=0, var=False):
             if n_root_level > 0:
                 attr, positions, velocities, count_nodes, \
                 rels, rels_type, node_r_idx, node_s_idx, pstep = \
-                        make_hierarchy(args.env, attr, positions, velocities, i, st, ed,
+                        make_hierarchy(attr, positions, velocities, i, st, ed,
                                        phases_dict, count_nodes, clusters[cnt_clusters], verbose, var)
 
                 for j in range(len(rels)):
@@ -920,36 +908,29 @@ class PhysicsFleXDataset(Dataset):
 
 
     def __getitem__(self, idx):
+        idx = idx % self.n_rollout # not necessary
+        trial_dir = self.all_trials[idx]
+        #print(self.args.outf.split("/")[-1], trial_dir)
 
-        if self.args.env == "TDWdominoes":
-            idx = idx % self.n_rollout
-            trial_dir = self.all_trials[idx]
-            #print(self.args.outf.split("/")[-1], trial_dir)
+        data_dir = "/".join(trial_dir.split("/")[:-1])
 
-            data_dir = "/".join(trial_dir.split("/")[:-1])
+        trial_fullname = trial_dir.split("/")[-1]
 
-            trial_fullname = trial_dir.split("/")[-1]
+        pkl_path = os.path.join(trial_dir, 'phases_dict.pkl')
+        with open(pkl_path, "rb") as f:
+            phases_dict = pickle.load(f)
+        phases_dict["trial_dir"] = trial_dir
 
-            pkl_path = os.path.join(trial_dir, 'phases_dict.pkl')
-            with open(pkl_path, "rb") as f:
-                phases_dict = pickle.load(f)
-            phases_dict["trial_dir"] = trial_dir
+        correct_bad_chair(phases_dict)
+        # remove obstacles that are too big
+        remove_large_obstacles(phases_dict)
 
-            correct_bad_chair(phases_dict)
-            # remove obstacles that are too big
-            remove_large_obstacles(phases_dict)
+        is_subsample = subsample_particles_on_large_objects(phases_dict, limit=3000)
 
-            #if self.args.subsample_particles:
-            is_subsample = subsample_particles_on_large_objects(phases_dict, limit=3000)
+        # because we want to sample also idx_timestep + 1
+        time_step = phases_dict["time_step"] - self.training_fpt
+        idx_timestep = np.random.randint(self.start_timestep, time_step)
 
-            # because we want to sample also idx_timestep + 1
-            time_step = phases_dict["time_step"] - self.training_fpt
-            idx_timestep = np.random.randint(self.start_timestep, time_step)
-
-            #idx_timestep = 100
-
-        else:
-            raise ValueError
 
         data_path = os.path.join(data_dir, trial_fullname, str(idx_timestep) + '.h5')
         data_nxt_path = os.path.join(data_dir, trial_fullname, str(int(idx_timestep + self.training_fpt)) + '.h5')
@@ -968,12 +949,9 @@ class PhysicsFleXDataset(Dataset):
         data_cur = load_data_dominoes(self.data_names, path, phases_dict)
         for i in range(self.args.n_his):
             path = os.path.join(data_dir, trial_fullname, str(max(0, int(idx_timestep - (i + 1 + 1) * self.training_fpt))) + '.h5')
-            if self.args.env == "TDWdominoes":
-               data_prev = load_data_dominoes(self.data_names, path, phases_dict)
-               _, data_his = recalculate_velocities([data_prev, data_cur], self.dt, self.data_names)
-               data_cur = data_prev
-            else:
-               data_his = load_data(self.data_names, path)
+            data_prev = load_data_dominoes(self.data_names, path, phases_dict)
+            _, data_his = recalculate_velocities([data_prev, data_cur], self.dt, self.data_names)
+            data_cur = data_prev
             data_hiss.append(data_his)
             current_oldest = - (i + 1) * self.training_fpt
 
@@ -981,7 +959,6 @@ class PhysicsFleXDataset(Dataset):
         # calculate the velocities if training_timestep is not 1
         # augment
         if self.augment_coord or self.training_fpt > 1:
-            assert(self.args.env == "TDWdominoes") # haven't checked for other tasks
             # load one more in the back so we can compute the velocities
 
             path = os.path.join(data_dir, trial_fullname, str(max(0, int(idx_timestep - current_oldest - self.training_fpt))) + '.h5')
