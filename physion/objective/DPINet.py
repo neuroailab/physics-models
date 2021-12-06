@@ -342,6 +342,11 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 gt_out.write(img[:,:,:3])
                 pred_out.write(img[:,:,:3])
 
+            # add some black frames 
+            for _ in range(10):
+                gt_out.write(np.zeros((600,800,3), dtype=np.uint8))
+                pred_out.write(np.zeros((600,800,3), dtype=np.uint8))
+
             # gt rollout
             for current_fid, step in enumerate(timesteps[start_id:]):
                 data_path = os.path.join(trial_name, str(step) + '.h5')
