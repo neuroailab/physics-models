@@ -6,6 +6,7 @@ import logging
 import mlflow
 import cv2
 import vispy.scene
+import re
 
 import torch
 import torch.nn as nn
@@ -14,6 +15,7 @@ from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase, ReadoutObjectiveBase
+from physopt.objective import utils
 from physion.objective.objective import PytorchModel
 from physion.models.particle import GNSRigidH
 from physion.data.flexdata import PhysicsFleXDataset, collate_fn, load_data_dominoes, \
@@ -183,6 +185,10 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
         return max_timestep
 
     def call(self, args):
+        feature_file = utils.get_feats_from_artifact_store('test', self.tracking_uri, self.run_id, self.output_dir)
+        if feature_file is not None: # features already extracted
+            return 
+
         self.model.eval()
         scenario = self.readout_name
         args = self.pretraining_cfg.DATA.args
@@ -199,6 +205,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
         labels = []
         stimulus_name = []
         input_states = []
+        observed_states = []
         simulated_states = []
         for trial_id, trial_cxt in enumerate(gt_labels):
             print("Rollout %d / %d" % (trial_id, len(gt_labels)))
@@ -207,15 +214,22 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             stimulus_name.append(trial_name)
             labels.append(label_gt)
             print(f'Trial name: {trial_name} ({label_gt})')
+
+            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+            gt_vid_path = os.path.join(self.output_dir, f'gt_{trial_name}.avi')
+            gt_out = cv2.VideoWriter(gt_vid_path, fourcc, 20, (800, 600))
+            pred_vid_path = os.path.join(self.output_dir, f'pred_{trial_name}.avi')
+            pred_out = cv2.VideoWriter(pred_vid_path, fourcc, 20, (800, 600))
+
             trial_name = os.path.join(args.dpi_data_dir, 'test', scenario, trial_name)
 
             gt_node_rs_idxs = []
             node_rs_idxs = []
 
-            time_step = len([file for file in os.listdir(trial_name) if file.endswith(".h5")])
+            time_step = len([fn for fn in os.listdir(trial_name) if re.match('\d+\.h5', fn) is not None])
             timesteps  = [t for t in range(0, time_step - int(args.training_fpt), int(args.training_fpt))]
-
-            total_nframes = self.get_max_timestep(scenario)
+            total_nframes = len(timesteps)
+            max_timestep = self.get_max_timestep(scenario)
 
             pkl_path = os.path.join(trial_name, 'phases_dict.pkl')
             with open(pkl_path, "rb") as f:
@@ -273,13 +287,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             view.add(p1)
             view.add(line)
 
-            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-            gt_vid_path = os.path.join(self.output_dir, f'gt_{trial_id}.avi')
-            gt_out = cv2.VideoWriter(gt_vid_path, fourcc, 20, (800, 600))
-            pred_vid_path = os.path.join(self.output_dir, f'pred_{trial_id}.avi')
-            pred_out = cv2.VideoWriter(pred_vid_path, fourcc, 20, (800, 600))
-
-            pred_is_positive_trial = False
             start_timestep = 45 # start_id * training_fpt
             start_id = 15 
             assert start_timestep == start_id * args.training_fpt
@@ -314,8 +321,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                     p_gt = np.zeros((total_nframes, n_particles, args.position_dim))
                     v_nxt_gt = np.zeros((total_nframes, n_particles, args.position_dim))
-
-                    p_pred = np.zeros((total_nframes, n_particles, args.position_dim))
+                    p_pred = np.zeros((max_timestep, n_particles, args.position_dim))
 
                 p_gt[current_fid] = positions[:, -args.position_dim:]
                 v_nxt_gt[current_fid] = velocities_nxt[:, -args.position_dim:]
@@ -348,6 +354,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 pred_out.write(np.zeros((600,800,3), dtype=np.uint8))
 
             # gt rollout
+            observed_state = []
             for current_fid, step in enumerate(timesteps[start_id:]):
                 data_path = os.path.join(trial_name, str(step) + '.h5')
                 data_nxt_path = os.path.join(trial_name, str(step + int(args.training_fpt)) + '.h5')
@@ -370,17 +377,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 velocities_nxt = data_nxt[1]
 
-                if step == 0:
-                    positions, velocities = data
-                    n_particles = positions.shape[0]
-                    print("n_particles", n_particles)
-                    clusters = phases_dict["clusters"]
-
-                    p_gt = np.zeros((total_nframes, n_particles, args.position_dim))
-                    v_nxt_gt = np.zeros((total_nframes, n_particles, args.position_dim))
-
-                    p_pred = np.zeros((total_nframes, n_particles, args.position_dim))
-
                 p_gt[current_fid] = positions[:, -args.position_dim:]
                 v_nxt_gt[current_fid] = velocities_nxt[:, -args.position_dim:]
 
@@ -392,7 +388,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 st2, ed2 = instance_idx[yellow_id], instance_idx[yellow_id + 1]
                 yellow_pts = positions[st2:ed2]
 
-                input_state.append([red_pts, yellow_pts])
+                observed_state.append([red_pts, yellow_pts])
 
                 colors = convert_groups_to_colors(
                     phases_dict["instance_idx"],
@@ -413,10 +409,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             _, data = recalculate_velocities([data_prev, data], dt, data_names)
 
             simulated_state = []
-            for current_fid in range(total_nframes - start_id):
-                if pred_is_positive_trial:
-                    break
-
+            for current_fid in range(max_timestep - start_id):
                 p_pred[start_id + current_fid] = data[0]
 
                 attr, state, rels, n_particles, n_shapes, instance_idx = \
@@ -484,6 +477,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 pred_out.write(img[:,:,:3])
 
             input_states.append(input_state)
+            observed_states.append(observed_state)
             simulated_states.append(simulated_state)
 
             gt_out.release()
@@ -492,7 +486,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             mlflow.log_artifact(pred_vid_path, artifact_path='videos')
         output = {
             'input_states': input_states,
-            'observed_states': None,
+            'observed_states': observed_states,
             'simulated_states': simulated_states,
             'labels': labels,
             'stimulus_name': stimulus_name,
