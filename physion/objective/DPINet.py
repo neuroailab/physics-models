@@ -159,13 +159,8 @@ class PretrainingObjective(DPINetModel, PretrainingObjectiveBase):
         return {'val_loss': loss.item()}
 
 class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
-    def get_readout_dataloader(self, datapaths):
-        args = self.pretraining_cfg.DATA.args
-        dataset = PhysicsFleXDataset(datapaths, args, 'valid', args.verbose_data)
-        dataloader = torch.utils.data.DataLoader(
-            dataset, batch_size=self.pretraining_cfg.BATCH_SIZE,
-            shuffle=False, collate_fn=collate_fn)
-        return dataloader
+    def get_readout_dataloader(self, datapaths): # gets list of trials from labels .txt file
+        pass
 
     def extract_feat_step(self): # hack since overriding 'call'
         pass
@@ -184,6 +179,28 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             max_timestep = 105
         return max_timestep
 
+    @staticmethod
+    def get_red_yellow_id(phases_dict, scenario, trial_name):
+        if scenario in ["Dominoes", "Collide", "Drop"]:
+            red_id = 1
+            yellow_id = 0
+        elif scenario in ["Drape"]:
+            instance_idx = phases_dict["instance_idx"]
+            yellow_id = 0
+            red_id = len(instance_idx) - 1 -1
+        elif scenario in ["Roll"]:
+            yellow_id = 0
+            if "ramp" in trial_name:
+                red_id = 2
+            else:
+                red_id = 1
+        else:
+            if "red_id" not in phases_dict:
+                print(arg_name, trial_id_name)
+            red_id = phases_dict["red_id"]
+            yellow_id = phases_dict["yellow_id"]
+        return red_id, yellow_id
+
     def call(self, args):
         feature_file = utils.get_feats_from_artifact_store('test', self.tracking_uri, self.run_id, self.output_dir)
         if feature_file is not None: # features already extracted
@@ -193,7 +210,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
         scenario = self.readout_name
         args = self.pretraining_cfg.DATA.args
         dt = args.training_fpt * args.dt
-        accs = []
 
         label_file = os.path.join(args.dpi_data_dir, 'test/labels', scenario + '.txt') # TODO: not robust
         gt_labels = []
@@ -214,51 +230,29 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             stimulus_name.append(trial_name)
             labels.append(label_gt)
             print(f'Trial name: {trial_name} ({label_gt})')
+            trial_dir = os.path.join(args.dpi_data_dir, 'test', scenario, trial_name)
+
+            time_step = len([fn for fn in os.listdir(trial_dir) if re.match('\d+\.h5', fn) is not None])
+            timesteps  = [t for t in range(0, time_step - int(args.training_fpt), int(args.training_fpt))]
+            total_nframes = len(timesteps)
+            max_timestep = self.get_max_timestep(scenario)
+
+            pkl_path = os.path.join(trial_dir, 'phases_dict.pkl')
+            with open(pkl_path, "rb") as f:
+                phases_dict = pickle.load(f)
+            phases_dict["trial_dir"] = trial_dir
+
+            red_id, yellow_id = self.get_red_yellow_id(phases_dict, scenario, trial_name)
+
+            is_bad_chair = correct_bad_chair(phases_dict)
+            is_remove_obstacles = remove_large_obstacles(phases_dict) # remove obstacles that are too big
+            is_subsample = subsample_particles_on_large_objects(phases_dict, limit=args.subsample) # downsample large object
 
             fourcc = cv2.VideoWriter_fourcc(*'MJPG')
             gt_vid_path = os.path.join(self.output_dir, f'gt_{trial_name}.avi')
             gt_out = cv2.VideoWriter(gt_vid_path, fourcc, 20, (800, 600))
             pred_vid_path = os.path.join(self.output_dir, f'pred_{trial_name}.avi')
             pred_out = cv2.VideoWriter(pred_vid_path, fourcc, 20, (800, 600))
-
-            trial_name = os.path.join(args.dpi_data_dir, 'test', scenario, trial_name)
-
-            gt_node_rs_idxs = []
-            node_rs_idxs = []
-
-            time_step = len([fn for fn in os.listdir(trial_name) if re.match('\d+\.h5', fn) is not None])
-            timesteps  = [t for t in range(0, time_step - int(args.training_fpt), int(args.training_fpt))]
-            total_nframes = len(timesteps)
-            max_timestep = self.get_max_timestep(scenario)
-
-            pkl_path = os.path.join(trial_name, 'phases_dict.pkl')
-            with open(pkl_path, "rb") as f:
-                phases_dict = pickle.load(f)
-            phases_dict["trial_dir"] = trial_name
-
-            # get red_id and yellow_id
-            if scenario in ["Dominoes", "Collide", "Drop"]:
-                red_id = 1
-                yellow_id = 0
-            elif scenario in ["Drape"]:
-                instance_idx = phases_dict["instance_idx"]
-                yellow_id = 0
-                red_id = len(instance_idx) - 1 -1
-            elif scenario in ["Roll"]:
-                yellow_id = 0
-                if "ramp" in trial_name:
-                    red_id = 2
-                else:
-                    red_id = 1
-            else:
-                if "red_id" not in phases_dict:
-                    print(arg_name, trial_id_name)
-                red_id = phases_dict["red_id"]
-                yellow_id = phases_dict["yellow_id"]
-
-            is_bad_chair = correct_bad_chair(phases_dict)
-            is_remove_obstacles = remove_large_obstacles(phases_dict) # remove obstacles that are too big
-            is_subsample = subsample_particles_on_large_objects(phases_dict, limit=args.subsample) # downsample large object
 
             particle_size = 6.0
             n_instance = 5 #args.n_instance
@@ -291,16 +285,17 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             start_id = 15 
             assert start_timestep == start_id * args.training_fpt
             input_state = []
+            gt_node_rs_idxs = []
             for current_fid, step in enumerate(timesteps[:start_id]):
-                data_path = os.path.join(trial_name, str(step) + '.h5')
-                data_nxt_path = os.path.join(trial_name, str(step + int(args.training_fpt)) + '.h5')
+                data_path = os.path.join(trial_dir, str(step) + '.h5')
+                data_nxt_path = os.path.join(trial_dir, str(step + int(args.training_fpt)) + '.h5')
 
                 data_names = ['positions', 'velocities']
                 data = load_data_dominoes(data_names, data_path, phases_dict)
 
                 data_nxt = load_data_dominoes(data_names, data_nxt_path, phases_dict)
 
-                data_prev_path = os.path.join(trial_name, str(max(0, step - int(args.training_fpt))) + '.h5')
+                data_prev_path = os.path.join(trial_dir, str(max(0, step - int(args.training_fpt))) + '.h5')
                 data_prev = load_data_dominoes(data_names, data_prev_path, phases_dict)
 
                 _, data, data_nxt = recalculate_velocities([data_prev, data, data_nxt], dt, data_names)
@@ -356,15 +351,15 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             # gt rollout
             observed_state = []
             for current_fid, step in enumerate(timesteps[start_id:]):
-                data_path = os.path.join(trial_name, str(step) + '.h5')
-                data_nxt_path = os.path.join(trial_name, str(step + int(args.training_fpt)) + '.h5')
+                data_path = os.path.join(trial_dir, str(step) + '.h5')
+                data_nxt_path = os.path.join(trial_dir, str(step + int(args.training_fpt)) + '.h5')
 
                 data_names = ['positions', 'velocities']
                 data = load_data_dominoes(data_names, data_path, phases_dict)
 
                 data_nxt = load_data_dominoes(data_names, data_nxt_path, phases_dict)
 
-                data_prev_path = os.path.join(trial_name, str(max(0, step - int(args.training_fpt))) + '.h5')
+                data_prev_path = os.path.join(trial_dir, str(max(0, step - int(args.training_fpt))) + '.h5')
                 data_prev = load_data_dominoes(data_names, data_prev_path, phases_dict)
 
                 _, data, data_nxt = recalculate_velocities([data_prev, data, data_nxt], dt, data_names)
@@ -402,13 +397,14 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 gt_out.write(img[:,:,:3])
 
             # model rollout
-            data_path = os.path.join(trial_name, f'{start_timestep}.h5')
+            data_path = os.path.join(trial_dir, f'{start_timestep}.h5')
             data = load_data_dominoes(data_names, data_path, phases_dict)
-            data_path_prev = os.path.join(trial_name, f'{int(start_timestep - args.training_fpt)}.h5')
+            data_path_prev = os.path.join(trial_dir, f'{int(start_timestep - args.training_fpt)}.h5')
             data_prev = load_data_dominoes(data_names, data_path_prev, phases_dict)
             _, data = recalculate_velocities([data_prev, data], dt, data_names)
 
             simulated_state = []
+            node_rs_idxs = []
             for current_fid in range(max_timestep - start_id):
                 p_pred[start_id + current_fid] = data[0]
 

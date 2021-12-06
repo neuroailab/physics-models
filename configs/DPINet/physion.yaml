@@ -2,8 +2,8 @@ DATA_SPACE:
     MODULE: physion.data_space
     SEEDS: (0,)
     KWARGS:
-        # scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
-        scenarios: ['Dominoes']
+        scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
+        # scenarios: ['Dominoes_debug']
         file_pattern: '*/*.h5'
         pretraining:
             train:
@@ -12,15 +12,18 @@ DATA_SPACE:
                 dir: 'dpi_net_data/test'
         readout:
             dir: 'dpi_net_data/test'
-        # pretraining_protocols: ['all']
-        pretraining_protocols: ['only']
+        pretraining_protocols: ['all']
+        # pretraining_protocols: ['only']
         readout_protocol: 'full'
 
 PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.DPINet
     MODEL_NAME: 'DPINet'
-    TRAIN_STEPS: 10000000
+    TRAIN_STEPS: 100000
     BATCH_SIZE: 1
+    VAL_FREQ: 10000
+    LOG_FREQ: 1000
+    CKPT_FREQ: 10000
     MODEL:
         args:
             noise_std: 3.e-4
@@ -45,7 +48,6 @@ PRETRAINING:
         args:
             augment_worldcoord: 0
             statf: ''
-            env: 'TDWdominoes'
             dt: 0.01
             training_fpt: 3 # subsampling
             time_step: 301
@@ -72,6 +74,6 @@ READOUT:
     OBJECTIVE_NAME: 'ReadoutObjective'
 
 CONFIG:
-    EXPERIMENT_NAME: 'physion'
+    EXPERIMENT_NAME: 'physion-particles2'
     POSTGRES:
         DBNAME: 'physion-physopt'
