@@ -273,6 +273,10 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
             view.camera = vispy.scene.cameras.TurntableCamera(fov=50, azimuth=80, elevation=30, distance=distance, up='+y')
             n_instance = len(phases_dict["instance"])
             instance_colors = create_instance_colors(n_instance)
+            colors = convert_groups_to_colors(
+                phases_dict["instance_idx"],
+                instance_colors=instance_colors)
+            n_particle = phases_dict["instance_idx"][-1]
             add_floor(view)
             p1 = vispy.scene.visuals.Markers()
             p1.antialias = 0  # remove white edge
@@ -331,12 +335,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 input_state.append([red_pts, yellow_pts])
 
-                colors = convert_groups_to_colors(
-                    phases_dict["instance_idx"],
-                    instance_colors=instance_colors)
-
-                colors = np.clip(colors, 0., 1.)
-                n_particle = phases_dict["instance_idx"][-1]
                 p1.set_data(p_gt[current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
                 line.set_data(pos=np.concatenate([p_gt[current_fid, :], floor_pos], axis=0), connect=gt_node_rs_idxs[current_fid])
                 img = c.render()
@@ -344,7 +342,7 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
                 pred_out.write(img[:,:,:3])
 
             # add some black frames 
-            for _ in range(10):
+            for _ in range(5):
                 gt_out.write(np.zeros((600,800,3), dtype=np.uint8))
                 pred_out.write(np.zeros((600,800,3), dtype=np.uint8))
 
@@ -385,12 +383,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 observed_state.append([red_pts, yellow_pts])
 
-                colors = convert_groups_to_colors(
-                    phases_dict["instance_idx"],
-                    instance_colors=instance_colors)
-
-                colors = np.clip(colors, 0., 1.)
-                n_particle = phases_dict["instance_idx"][-1]
                 p1.set_data(p_gt[current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
                 line.set_data(pos=np.concatenate([p_gt[current_fid, :], floor_pos], axis=0), connect=gt_node_rs_idxs[current_fid])
                 img = c.render()
@@ -461,12 +453,6 @@ class ExtractionObjective(DPINetModel, ExtractionObjectiveBase):
 
                 simulated_state.append([red_pts, yellow_pts])
 
-                colors = convert_groups_to_colors(
-                    phases_dict["instance_idx"],
-                    instance_colors=instance_colors)
-
-                colors = np.clip(colors, 0., 1.)
-                n_particle = phases_dict["instance_idx"][-1]
                 p1.set_data(p_pred[start_id+current_fid, :n_particle], size=particle_size, edge_color='black', face_color=colors)
                 line.set_data(pos=np.concatenate([p_pred[start_id+current_fid, :], floor_pos], axis=0), connect=node_rs_idxs[current_fid])
                 img = c.render()
@@ -594,5 +580,5 @@ def convert_groups_to_colors(group, instance_colors):
         st, end = group[instance_id], group[instance_id+1]
         colors[st:end] = instance_colors[instance_id]
 
-    # print("colors", colors)
+    colors = np.clip(colors, 0., 1.)
     return colors
