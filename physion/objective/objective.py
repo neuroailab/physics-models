@@ -33,7 +33,7 @@ class PytorchModel(PhysOptModel):
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
 
-    def get_dataloader(self, TDWDataset, datapaths, random_seq, shuffle):
+    def get_dataloader(self, TDWDataset, datapaths, random_seq, shuffle, num_workers=2):
         cfg = self.pretraining_cfg
         dataset = TDWDataset(
             data_root=datapaths,
@@ -45,7 +45,7 @@ class PytorchModel(PhysOptModel):
             subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR,
             seed=self.seed,
             )
-        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
+        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=num_workers)
         return dataloader
 
 class PhysionReadoutObjective(ReadoutObjectiveBase):
