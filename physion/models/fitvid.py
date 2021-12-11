@@ -449,9 +449,7 @@ class FitVid(nn.Module):
             for k,v in skips.items()}
         return skips
 
-    def forward(self, video, actions=None, step=0):
-        print(video.shape)
-
+    def forward(self, video, actions=None):
         self.B, self.T = video.shape[:2]
         if video.dtype == torch.uint8:
             video = video.to(torch.float32) / 255.0
@@ -497,6 +495,7 @@ class FitVid(nn.Module):
 
         else: # eval
             preds, x_pred = [], None
+            h_preds = []
             for t in range(1, self.T):
                 h, h_target = hidden[:, t-1], hidden[:, t]
                 if t > self.n_past:
@@ -513,7 +512,8 @@ class FitVid(nn.Module):
                 inp = self.get_input(h, act_t, z_t)
                 pred_s, (_, h_pred, _) = self.frame_predictor(inp, pred_s)
                 h_pred = torch.sigmoid(h_pred)
-                print("h_pred %d" % t, h_pred.shape)
+                h_preds.append(h_pred)
+                # print("h_pred %d" % t, h_pred.shape)
                 x_pred = self.decoder(h_pred.unsqueeze(1), skips)[:,0]
 
                 preds.append(x_pred)
@@ -521,6 +521,7 @@ class FitVid(nn.Module):
                 logvars.append(logvar)
                 kld += kl(mu, logvar, prior_mu, prior_logvar)
 
+            h_preds = torch.stack(h_preds, 1)
             preds = torch.stack(preds, 1)
 
         means = torch.stack(means, 1)
@@ -536,5 +537,5 @@ class FitVid(nn.Module):
             'loss/all': loss
         }
 
-        return loss, preds, metrics
+        return loss, preds, h_preds, metrics
 
