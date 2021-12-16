@@ -1,11 +1,16 @@
+import os
 import numpy as np
 import logging
+import imageio
 import torch
+import mlflow
 
 from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
 from physion.objective.objective import PytorchModel
 from physion.data.pydata import TDWDataset
 from physion.models.fitvid import FitVid
+
+BASE_FPS = 30
 
 class FitVidModel(PytorchModel):
     def get_model(self):
@@ -53,7 +58,21 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
         self.model.train = False
         with torch.no_grad():
             loss, preds, h_preds, metrics = self.model(data['images'].to(self.device))
+            print(preds.shape)
             print(h_preds.shape)
+
+        # save first sample in batch
+        fn = os.path.join(self.output_dir, 'gt_'+data['stimulus_name'][0]+'.mp4')
+        arr = (255*torch.permute(data['images'][0], (0,2,3,1)).numpy()).astype(np.uint8)
+        imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR)
+        mlflow.log_artifact(fn, artifact_path='videos')
+        logging.info(f'Video written to {fn}')
+
+        fn = os.path.join(self.output_dir, 'pred_'+data['stimulus_name'][0]+'.mp4')
+        arr = (255*torch.permute(preds[0], (0,2,3,1)).cpu().numpy()).astype(np.uint8)
+        imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR)
+        mlflow.log_artifact(fn, artifact_path='videos')
+        logging.info(f'Video written to {fn}')
 
         labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
