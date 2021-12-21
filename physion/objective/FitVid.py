@@ -61,9 +61,12 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
     def extract_feat_step(self, data):
         self.model.train = False
         with torch.no_grad():
-            loss, preds, h_preds, metrics = self.model(data['images'].to(self.device))
-            print(preds.shape)
-            print(h_preds.shape)
+            _, preds, h_preds, _ = self.model(data['images'].to(self.device))
+
+            # get observed states
+            self.model.n_past = self.pretraining_cfg.DATA.SEQ_LEN
+            _, _, observed_h_preds, _ = self.model(data['images'].to(self.device))
+            
 
         # save first sample in batch
         fn = os.path.join(self.output_dir, f'gt_{self.count}_'+data['stimulus_name'][0]+'.mp4')
@@ -82,10 +85,11 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
         labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
         h_preds = h_preds.cpu().numpy()
+        observed_h_preds = observed_h_preds.cpu().numpy()
         output = {
-            'input_states': h_preds[:,:self.model.n_past-1],
-            'observed_states': h_preds[:, self.model.n_past-1:], # TODO: hack to pass check feats
-            'simulated_states': h_preds[:,self.model.n_past-1:],
+            'input_states': h_preds[:,:self.pretraining_cfg.DATA.STATE_LEN-1],
+            'observed_states': observed_h_preds[:, self.pretraining_cfg.DATA.STATE_LEN-1:],
+            'simulated_states': h_preds[:,self.pretraining_cfg.DATA.STATE_LEN-1:],
             'labels': labels,
             'stimulus_name': stimulus_name,
             }
