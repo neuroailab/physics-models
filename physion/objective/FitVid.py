@@ -54,6 +54,10 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
         shuffle = False # no need to shuffle for feature extraction
         return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle, num_workers=0)
 
+    def setup(self):
+        super().setup()
+        self.count = 0
+
     def extract_feat_step(self, data):
         self.model.train = False
         with torch.no_grad():
@@ -62,17 +66,18 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             print(h_preds.shape)
 
         # save first sample in batch
-        fn = os.path.join(self.output_dir, 'gt_'+data['stimulus_name'][0]+'.mp4')
+        fn = os.path.join(self.output_dir, f'gt_{self.count}_'+data['stimulus_name'][0]+'.mp4')
         arr = (255*torch.permute(data['images'][0], (0,2,3,1)).numpy()).astype(np.uint8)
         imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR)
         mlflow.log_artifact(fn, artifact_path='videos')
         logging.info(f'Video written to {fn}')
 
-        fn = os.path.join(self.output_dir, 'pred_'+data['stimulus_name'][0]+'.mp4')
+        fn = os.path.join(self.output_dir, f'pred_{self.count}_'+data['stimulus_name'][0]+'.mp4')
         arr = (255*torch.permute(preds[0], (0,2,3,1)).cpu().numpy()).astype(np.uint8)
         imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR)
         mlflow.log_artifact(fn, artifact_path='videos')
         logging.info(f'Video written to {fn}')
+        self.count += 1
 
         labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
