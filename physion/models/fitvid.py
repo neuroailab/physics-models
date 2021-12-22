@@ -537,5 +537,11 @@ class FitVid(nn.Module):
             'loss/all': loss
         }
 
-        return loss, preds, h_preds, metrics
+        return {
+            'loss': loss, 
+            'preds': preds, 
+            'h_preds': h_preds, 
+            'hidden': hidden,
+            'metrics': metrics,
+            }
 
