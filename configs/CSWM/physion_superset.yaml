@@ -10,12 +10,15 @@ DATA_SPACE:
             test:
                 dir: 'physion_data/pretraining_val'
         readout:
+            file_pattern: '*/*.hdf5'
             train:
-                scenarios: ['Collide_val', 'Contain_val', 'Dominoes_val', 'Drape_val', 'Drop_val', 'Link_val', 'Roll_val', 'Support_val']
+                # scenarios: ['Collide_val2', 'Contain_val2', 'Dominoes_val2', 'Drape_val2', 'Drop_val2', 'Link_val2', 'Roll_val2', 'Support_val2']
+                scenarios: ['Drop_human']
                 dir: 'physion_data/readout_train_redyellow'
             test:
-                scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
-                dir: 'physion_data/readout_val_redyellow'
+                # scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
+                scenarios: ['Drop']
+                dir: 'physion_data/readout_human_redyellow'
         pretraining_protocols: ['all']
         readout_protocol: 'full'
 

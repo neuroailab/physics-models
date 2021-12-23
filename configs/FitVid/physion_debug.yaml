@@ -2,29 +2,29 @@ DATA_SPACE:
     MODULE: physion.data_space
     SEEDS: (0,)
     KWARGS:
-        # scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
-        scenarios: ['Collide'] 
+        scenarios: ['Collide_debug2'] 
         pretraining:
             train:
                 dir: 'physion_data/pretraining_train'
             test:
-                dir: 'physion_data/pretraining_val'
+                dir: 'physion_data/pretraining_train'
+                # dir: 'physion_data/pretraining_val'
         readout:
             train:
-                dir: 'physion_data/readout_train_redyellow'
+                dir: 'physion_data/pretraining_train'
+                # dir: 'physion_data/readout_train_redyellow'
             test:
-                dir: 'physion_data/readout_test_redyellow'
+                dir: 'physion_data/pretraining_train'
+                # dir: 'physion_data/readout_test_redyellow'
         pretraining_protocols: ['only']
         # pretraining_protocols: ['all']
         readout_protocol: 'minimal'
 
 SKIP_PRETRAINING: True
 PRETRAINING:
-    VAL_FREQ: 10000
-    CKPT_FREQ: 5000
     OBJECTIVE_MODULE: physion.objective.FitVid
     MODEL_NAME: 'FitVid'
-    TRAIN_STEPS: 1000000
+    TRAIN_STEPS: 100000
     BATCH_SIZE: 8
     TRAIN:
         LR: 1.e-3
@@ -36,7 +36,7 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FitVid
-    LOAD_STEP: 170000
+    LOAD_STEP: 9200 
 
 READOUT:
     # PROTOCOLS: ['simulated']
