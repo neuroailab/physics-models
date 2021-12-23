@@ -98,12 +98,7 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             # get observed states
             hidden, skips = self.model.encoder(data['images'].to(self.device))
             hidden = torch.sigmoid(hidden)
-            observed_preds = []
-            for i in range(hidden.shape[1]):
-                h = hidden[:,i].unsqueeze(1)
-                s = self.model._broadcast_context_frame_skips(skips, frame=i, num_times=1)
-                observed_preds.append(self.model.decoder(h, s))
-            observed_preds = torch.concat(observed_preds, axis=1)
+            observed_preds = self.model.decoder(hidden, skips)
             observed_hs = hidden.cpu().numpy()
 
         # save N samples in batch
