@@ -32,6 +32,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle, num_workers=0)
 
     def train_step(self, data):
+        self.model.train()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR)
         optimizer.zero_grad()
 
@@ -43,7 +44,8 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         return loss.item()
 
     def val_step(self, data):
-        self.model.train = False
+        self.model.training = False
+        self.model.eval()
         with torch.no_grad():
             model_output = self.model(data['images'].to(self.device))
             loss = model_output['loss']
@@ -86,7 +88,8 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
         self.count = 0
 
     def extract_feat_step(self, data):
-        self.model.train = False
+        self.model.training = False
+        self.model.eval()
         with torch.no_grad():
             model_output = self.model(data['images'].to(self.device))
             preds = model_output['preds']
@@ -94,40 +97,47 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
 
             # get observed states
             hidden, skips = self.model.encoder(data['images'].to(self.device))
-            observed_preds = self.model.decoder(torch.sigmoid(hidden), skips)
-            observed_hs = hidden.cpu().numpy()[:,1:] # to match shape of simulated states
-            print(observed_hs.shape)
+            hidden = torch.sigmoid(hidden)
+            observed_preds = []
+            for i in range(hidden.shape[1]):
+                h = hidden[:,i].unsqueeze(1)
+                s = self.model._broadcast_context_frame_skips(skips, frame=i, num_times=1)
+                observed_preds.append(self.model.decoder(h, s))
+            observed_preds = torch.concat(observed_preds, axis=1)
+            observed_hs = hidden.cpu().numpy()
 
-        # save first sample in batch
-        rollout_len = self.pretraining_cfg.DATA.SEQ_LEN - self.pretraining_cfg.DATA.STATE_LEN
-        fn = os.path.join(self.output_dir, f'gt_{self.count}_'+data['stimulus_name'][0]+'.mp4')
-        arr = (255*torch.permute(data['images'][0], (0,2,3,1)).numpy()).astype(np.uint8)
-        arr = add_rollout_border(arr, rollout_len)
-        imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR, macro_block_size=None)
-        mlflow.log_artifact(fn, artifact_path='videos')
-        logging.info(f'Video written to {fn}')
+        # save N samples in batch
+        N = min(data['images'].shape[0], 1)
+        for i in range(N):
+            rollout_len = self.pretraining_cfg.DATA.SEQ_LEN - self.pretraining_cfg.DATA.STATE_LEN
+            fn = os.path.join(self.output_dir, f'gt_{self.count}_'+data['stimulus_name'][i]+'.mp4')
+            arr = (255*torch.permute(data['images'][i], (0,2,3,1)).numpy()).astype(np.uint8)
+            arr = add_rollout_border(arr, rollout_len)
+            imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR, macro_block_size=None)
+            mlflow.log_artifact(fn, artifact_path='videos')
+            logging.info(f'Video written to {fn}')
 
-        fn = os.path.join(self.output_dir, f'obs_{self.count}_'+data['stimulus_name'][0]+'.mp4')
-        arr = (255*torch.permute(observed_preds[0], (0,2,3,1)).cpu().numpy()).astype(np.uint8)
-        arr = add_rollout_border(arr, rollout_len)
-        imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR, macro_block_size=None)
-        mlflow.log_artifact(fn, artifact_path='videos')
-        logging.info(f'Video written to {fn}')
+            fn = os.path.join(self.output_dir, f'obs_{self.count}_'+data['stimulus_name'][i]+'.mp4')
+            arr = (255*torch.permute(observed_preds[i], (0,2,3,1)).cpu().numpy()).astype(np.uint8)
+            arr = add_rollout_border(arr, rollout_len)
+            imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR, macro_block_size=None)
+            mlflow.log_artifact(fn, artifact_path='videos')
+            logging.info(f'Video written to {fn}')
 
-        fn = os.path.join(self.output_dir, f'sim_{self.count}_'+data['stimulus_name'][0]+'.mp4')
-        arr = (255*torch.permute(preds[0], (0,2,3,1)).cpu().numpy()).astype(np.uint8)
-        arr = add_rollout_border(arr, rollout_len)
-        imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR, macro_block_size=None)
-        mlflow.log_artifact(fn, artifact_path='videos')
-        logging.info(f'Video written to {fn}')
-        self.count += 1
+            fn = os.path.join(self.output_dir, f'sim_{self.count}_'+data['stimulus_name'][i]+'.mp4')
+            arr = (255*torch.permute(preds[i], (0,2,3,1)).cpu().numpy()).astype(np.uint8)
+            arr = add_rollout_border(arr, rollout_len)
+            imageio.mimwrite(fn, arr, fps=BASE_FPS//self.pretraining_cfg.DATA.SUBSAMPLE_FACTOR, macro_block_size=None)
+            mlflow.log_artifact(fn, artifact_path='videos')
+            logging.info(f'Video written to {fn}')
+            self.count += 1
 
         labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
         output = {
-            'input_states': h_preds[:,:self.pretraining_cfg.DATA.STATE_LEN-1],
-            'observed_states': observed_hs[:, self.pretraining_cfg.DATA.STATE_LEN-1:],
-            'simulated_states': h_preds[:,self.pretraining_cfg.DATA.STATE_LEN-1:],
+            'input_states': h_preds[:,:-rollout_len],
+            'observed_states': observed_hs[:,-rollout_len:], 
+            'simulated_states': h_preds[:,-rollout_len:],
             'labels': labels,
             'stimulus_name': stimulus_name,
             }

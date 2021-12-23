@@ -170,7 +170,7 @@ class NvaeEncoder(nn.Module):
         self.num_classes = num_classes
         self.num_channels = num_channels
         self.dtype = dtype
-        self.train = train
+        self.training = train
 
         self._build_blocks(encoder_block, down_block)
 
@@ -251,7 +251,7 @@ class NvaeDecoder(nn.Module):
         self.first_block_shape = first_block_shape
         self.skip_type = skip_type
         self.dtype = dtype
-        self.train = train
+        self.training = train
 
         self.linear = nn.Linear(
             self.input_size,
@@ -347,7 +347,7 @@ class MultiGaussianLSTM(nn.Module):
             [nn.LSTMCell(self.hidden_size, self.hidden_size) for _ in range(self.num_layers)])
 
         self.dtype = dtype
-        self.train = train
+        self.training = train
 
     def init_states(self, batch_size, device):
         states = [None] * self.num_layers
@@ -389,7 +389,7 @@ class FitVid(nn.Module):
             **kwargs
     ):
         super().__init__()
-        self.train = train
+        self.training = train
         self.stochastic = stochastic
         self.action_conditioned = action_conditioned
         self.input_size = input_size
@@ -404,14 +404,14 @@ class FitVid(nn.Module):
         self.encoder = NvaeEncoder(
             input_size=self.input_size,
             num_channels=self.num_channels,
-            train=self.train,
+            train=self.training,
             stage_sizes=[2, 2, 2, 2],
             num_classes=self.g_dim)
         self.decoder = NvaeDecoder(
             input_size=self.g_dim,
             output_size=self.input_size,
             num_channels=self.num_channels,
-            train=self.train,
+            train=self.training,
             stage_sizes=[2, 2, 2, 2],
             skip_type='residual')
         self.frame_predictor = MultiGaussianLSTM(
@@ -462,11 +462,11 @@ class FitVid(nn.Module):
         skips = self._broadcast_context_frame_skips(
             skips,
             frame=(self.n_past-1),
-            num_times=((self.T-1) if self.train else 1))
+            num_times=((self.T-1) if self.training else 1))
 
         kld = torch.tensor(0., dtype=self.dtype).to(video.device)
         means, logvars = [], []
-        if self.train:
+        if self.training:
             h_preds = []
             for t in range(1, self.T):
                 h, h_target = hidden[:, t-1], hidden[:, t]
