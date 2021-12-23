@@ -14,15 +14,11 @@ BASE_FPS = 30
 
 class FitVidModel(PytorchModel):
     def get_model(self):
-        fitvid_params = {
-            'input_size': 3,
-            'num_channels': 16,
-            'g_dim': 32,
-            'rnn_size': 64,
-            'n_past': self.pretraining_cfg.DATA.STATE_LEN,
-            'beta': 1e-4
-        }
-        model = FitVid(**fitvid_params).to(self.device)
+        model = FitVid(
+            input_size=3, 
+            n_past=self.pretraining_cfg.DATA.STATE_LEN, 
+            **self.pretraining_cfg.MODEL
+            ).to(self.device)
         return model
 
 class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
