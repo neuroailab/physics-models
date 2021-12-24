@@ -27,16 +27,22 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         shuffle = True if train else False # no need to shuffle for validation
         return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle, num_workers=0)
 
+    def setup(self):
+        super().setup()
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR)
+        self.optimizer.zero_grad()
+
     def train_step(self, data):
         self.model.train()
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR)
-        optimizer.zero_grad()
 
         model_output = self.model(data['images'].to(self.device)) # train video length = 12
         loss = model_output['loss']
+        loss = loss / self.pretraining_cfg.TRAIN.ACCUMULATION_STEPS # normalize loss since using average
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2)
-        optimizer.step()
+        if self.step % self.pretraining_cfg.TRAIN.ACCUMULATION_STEPS == 0:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
         return loss.item()
 
     def val_step(self, data):
