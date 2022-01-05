@@ -98,10 +98,27 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             h_preds = model_output['h_preds'].cpu().numpy()
 
             # get observed states
+            video = data['images'].to(self.device)
+            self.model.B, self.model.T = video.shape[:2]
+            pred_s = self.model.frame_predictor.init_states(self.model.B, video.device)
+            prior_s = self.model.prior.init_states(self.model.B, video.device)
             hidden, skips = self.model.encoder(data['images'].to(self.device))
-            hidden = torch.sigmoid(hidden)
-            observed_preds = self.model.decoder(hidden, skips)
-            observed_hs = hidden.cpu().numpy()
+            skips = self.model._broadcast_context_frame_skips(skips, frame=self.model.n_past-1, num_times=1)
+            observed_preds  = []
+            observed_h_preds = []
+            for t in range(1, self.model.T):
+                h = hidden[:, t-1]
+                prior_s, (z_t, prior_mu, prior_logvar) = self.model.prior(h, prior_s)
+                inp = self.model.get_input(h, None, z_t)
+                pred_s, (_, h_pred, _) = self.model.frame_predictor(inp, pred_s)
+                h_pred = torch.sigmoid(h_pred)
+                x_pred = self.model.decoder(h_pred.unsqueeze(1), skips)[:,0]
+
+                observed_h_preds.append(h_pred)
+                observed_preds.append(x_pred)
+
+            observed_hs = torch.stack(observed_h_preds, 1).cpu().numpy()
+            observed_preds = torch.stack(observed_preds, 1)
 
         # save N samples in batch
         N = min(data['images'].shape[0], 1)
