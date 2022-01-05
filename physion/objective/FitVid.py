@@ -103,16 +103,16 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             pred_s = self.model.frame_predictor.init_states(self.model.B, video.device)
             prior_s = self.model.prior.init_states(self.model.B, video.device)
             hidden, skips = self.model.encoder(data['images'].to(self.device))
-            skips = self.model._broadcast_context_frame_skips(skips, frame=self.model.n_past-1, num_times=1)
             observed_preds  = []
             observed_h_preds = []
-            for t in range(1, self.model.T):
-                h = hidden[:, t-1]
-                prior_s, (z_t, prior_mu, prior_logvar) = self.model.prior(h, prior_s)
+            for t in range(self.model.T):
+                h = hidden[:, t]
+                s = self.model._broadcast_context_frame_skips(skips, frame=t, num_times=1)
+                prior_s, (z_t, _, _) = self.model.prior(h, prior_s)
                 inp = self.model.get_input(h, None, z_t)
                 pred_s, (_, h_pred, _) = self.model.frame_predictor(inp, pred_s)
                 h_pred = torch.sigmoid(h_pred)
-                x_pred = self.model.decoder(h_pred.unsqueeze(1), skips)[:,0]
+                x_pred = self.model.decoder(h_pred.unsqueeze(1), s)[:,0]
 
                 observed_h_preds.append(h_pred)
                 observed_preds.append(x_pred)
