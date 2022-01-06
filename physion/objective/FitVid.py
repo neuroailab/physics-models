@@ -37,10 +37,13 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
 
         model_output = self.model(data['images'].to(self.device)) # train video length = 12
         loss = model_output['loss']
-        loss = loss / self.pretraining_cfg.TRAIN.ACCUMULATION_STEPS # normalize loss since using average
+        assert self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE % self.pretraining_cfg.BATCH_SIZE == 0, \
+            f'accumulation batch size ({self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE}) not divisible by batch size ({self.pretraining_cfg.BATCH_SIZE})'
+        accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE // self.pretraining_cfg.BATCH_SIZE
+        loss = loss / accumulation_steps # normalize loss since using average
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2)
-        if self.step % self.pretraining_cfg.TRAIN.ACCUMULATION_STEPS == 0:
+        if self.step % accumulation_steps == 0:
             self.optimizer.step()
             self.optimizer.zero_grad()
         return loss.item()
@@ -103,16 +106,16 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             pred_s = self.model.frame_predictor.init_states(self.model.B, video.device)
             prior_s = self.model.prior.init_states(self.model.B, video.device)
             hidden, skips = self.model.encoder(data['images'].to(self.device))
-            skips = self.model._broadcast_context_frame_skips(skips, frame=self.model.n_past-1, num_times=1)
             observed_preds  = []
             observed_h_preds = []
             for t in range(self.model.T):
                 h = hidden[:, t]
+                s = self.model._broadcast_context_frame_skips(skips, frame=t, num_times=1)
                 prior_s, (z_t, _, _) = self.model.prior(h, prior_s)
                 inp = self.model.get_input(h, None, z_t)
                 pred_s, (_, h_pred, _) = self.model.frame_predictor(inp, pred_s)
                 h_pred = torch.sigmoid(h_pred)
-                x_pred = self.model.decoder(h_pred.unsqueeze(1), skips)[:,0]
+                x_pred = self.model.decoder(h_pred.unsqueeze(1), s)[:,0]
 
                 observed_h_preds.append(h_pred)
                 observed_preds.append(x_pred)
