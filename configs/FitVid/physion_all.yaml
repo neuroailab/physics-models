@@ -34,9 +34,9 @@ PRETRAINING:
         num_channels: 64
     DATA:
         IMSIZE: 64
-        STATE_LEN: 7
-        SEQ_LEN: 25
-        SUBSAMPLE_FACTOR: 6
+        STATE_LEN: 5
+        SEQ_LEN: 16
+        SUBSAMPLE_FACTOR: 9
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FitVid
