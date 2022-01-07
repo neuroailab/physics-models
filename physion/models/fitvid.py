@@ -297,6 +297,8 @@ class NvaeDecoder(nn.Module):
         self.B, self.T = x.shape[:2]
         x = self.reshape_batch_time(x, merge=True)
         x = self.linear(x)
+        # post sigmoid + reshape
+        x = torch.sigmoid(x)
         x = x.view(x.shape[0], *self.first_block_shape)
 
         for i, block_size in enumerate(reversed(self.stage_sizes)):
@@ -482,7 +484,7 @@ class FitVid(nn.Module):
                 inp = self.get_input(h, act_t, z_t)
                 pred_s, (_, h_pred, _) = self.frame_predictor(inp, pred_s)
                 # print("frame pred mu %d" % t, h_pred.shape)
-                h_pred = torch.sigmoid(h_pred)
+                # h_pred = torch.sigmoid(h_pred)
                 h_preds.append(h_pred)
                 means.append(mu)
                 logvars.append(logvar)
@@ -511,7 +513,7 @@ class FitVid(nn.Module):
 
                 inp = self.get_input(h, act_t, z_t)
                 pred_s, (_, h_pred, _) = self.frame_predictor(inp, pred_s)
-                h_pred = torch.sigmoid(h_pred)
+                # h_pred = torch.sigmoid(h_pred)
                 h_preds.append(h_pred)
                 # print("h_pred %d" % t, h_pred.shape)
                 x_pred = self.decoder(h_pred.unsqueeze(1), skips)[:,0]
