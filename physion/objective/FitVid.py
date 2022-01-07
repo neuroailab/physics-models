@@ -109,11 +109,8 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             observed_preds  = []
             observed_h_preds = []
             for t in range(self.model.T):
-                h = hidden[:, t]
+                h_pred = hidden[:, t]
                 s = self.model._broadcast_context_frame_skips(skips, frame=t, num_times=1)
-                prior_s, (z_t, _, _) = self.model.prior(h, prior_s)
-                inp = self.model.get_input(h, None, z_t)
-                pred_s, (_, h_pred, _) = self.model.frame_predictor(inp, pred_s)
                 h_pred = torch.sigmoid(h_pred)
                 x_pred = self.model.decoder(h_pred.unsqueeze(1), s)[:,0]
 
