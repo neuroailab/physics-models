@@ -10,24 +10,22 @@ DATA_SPACE:
                 dir: 'physion_data/pretraining_val'
         readout:
             train:
-                # dir: 'physion_data/pretraining_train'
                 dir: 'physion_data/readout_train_redyellow'
             test:
                 dir: 'physion_data/readout_test_redyellow'
         pretraining_protocols: ['all']
         readout_protocol: 'minimal'
 
-SKIP_PRETRAINING: True
 PRETRAINING:
-    VAL_FREQ: 10000
+    VAL_FREQ: 5000
     CKPT_FREQ: 5000
     OBJECTIVE_MODULE: physion.objective.FitVid
     MODEL_NAME: 'FitVid'
     TRAIN_STEPS: 1000000
-    BATCH_SIZE: 2
+    BATCH_SIZE: 4
     TRAIN:
         LR: 1.e-3
-        ACCUMULATION_STEPS: 64
+        ACCUMULATION_BATCH_SIZE: 128
     MODEL:
         z_dim: 10
         beta: 1.e-4
@@ -42,7 +40,8 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FitVid
-    LOAD_STEP: 420000
+#     LOAD_STEP: 85000
+# SKIP_PRETRAINING: True
 
 READOUT:
     PROTOCOLS: ['simulated', 'observed', 'input']
