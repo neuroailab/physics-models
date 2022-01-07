@@ -55,7 +55,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             'sim': model_output['preds'].cpu().detach(),
             'stimulus_name': data['stimulus_name'],
             }
-        self.count += save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/train')
+        self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/train')
         return loss.item()
 
     def val_step(self, data):
@@ -71,7 +71,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             'sim': model_output['preds'].cpu(),
             'stimulus_name': data['stimulus_name'],
             }
-        self.count += save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/val')
+        self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/val')
 
         val_res =  {'val_loss': loss.item()}
         return val_res
@@ -121,7 +121,7 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             'sim': preds.cpu(),
             'stimulus_name': data['stimulus_name'],
             }
-        self.count += save_vis(frames, self.pretraining_cfg, self.output_dir, self.count)
+        self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count)
 
         labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
@@ -166,7 +166,7 @@ def save_vis(frames, pretraining_cfg, output_dir, count=0, artifact_path='videos
     stimulus_name = frames.pop('stimulus_name')
     for i in range(n_vis_per_batch):
         for k,v in frames.items():
-            fn = os.path.join(output_dir, f'{count}_'+stimulus_name[i]+f'_{k}.mp4')
+            fn = os.path.join(output_dir, f'{count:06}_'+stimulus_name[i]+f'_{k}.mp4')
             arr = (255*torch.permute(v[i], (0,2,3,1)).numpy()).astype(np.uint8)
             arr = add_rollout_border(arr, rollout_len)
             imageio.mimwrite(fn, arr, fps=fps, macro_block_size=None)
