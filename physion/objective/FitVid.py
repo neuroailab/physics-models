@@ -125,7 +125,7 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
 
         labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
-        rollout_len = pretraining_cfg.DATA.SEQ_LEN - pretraining_cfg.DATA.STATE_LEN
+        rollout_len = self.pretraining_cfg.DATA.SEQ_LEN - self.pretraining_cfg.DATA.STATE_LEN
         output = {
             'input_states': h_preds[:,:-rollout_len],
             'observed_states': observed_hs[:,-rollout_len:], 
