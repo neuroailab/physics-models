@@ -142,6 +142,8 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             model_output = self.model(data['images'].to(self.device))
             preds = model_output['preds']
             h_preds = model_output['h_preds'].cpu().numpy()
+            out_video = model_output['preds'][:, self.model.n_past-1:].cpu().numpy()
+            gt = data['images'][:, self.model.n_past:].numpy()
 
             # get observed states
             video = data['images'].to(self.device)
@@ -162,6 +164,13 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
 
             observed_hs = torch.stack(observed_h_preds, 1).cpu().numpy()
             observed_preds = torch.stack(observed_preds, 1)
+
+        val_res = {}
+        val_res['psnr'] = psnr(gt, out_video, max_val=1.)
+        val_res['ssim'] = ssim(gt, out_video, max_val=1.)
+        val_res['lpips'] = lpips(gt, out_video)
+        val_res['fvd'] = fvd(gt, out_video)
+        mlflow.log_metrics(val_res) # TODO: use batch index as step
 
         # save visualizations
         frames = {
