@@ -49,13 +49,14 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-        # save visualizations
-        frames = {
-            'gt': data['images'],
-            'sim': model_output['preds'].cpu().detach(),
-            'stimulus_name': data['stimulus_name'],
-            }
-        self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/train')
+        if self.count % self.pretraining_cfg.LOG_FREQ == 0: # TODO: change to using step intead of count
+            # save visualizations
+            frames = {
+                'gt': data['images'],
+                'sim': model_output['preds'].cpu().detach(),
+                'stimulus_name': data['stimulus_name'],
+                }
+            self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/train')
         return loss.item()
 
     def val_step(self, data):
