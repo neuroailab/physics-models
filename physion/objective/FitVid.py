@@ -4,6 +4,9 @@ import logging
 import imageio
 import torch
 import mlflow
+from skimage.metrics import structural_similarity
+from lpips import LPIPS
+from  physion.frechet_video_distance import fvd as tf_fvd
 
 from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
 from physion.objective.objective import PytorchModel
@@ -65,6 +68,14 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         with torch.no_grad():
             model_output = self.model(data['images'].to(self.device))
             loss = model_output['loss']
+            out_video = model_output['preds'][:, self.model.n_past-1:].cpu().numpy()
+            gt = data['images'][:, self.model.n_past:].numpy()
+
+        val_res =  {'val_loss': loss.item()}
+        val_res['psnr'] = psnr(gt, out_video, max_val=1.)
+        val_res['ssim'] = ssim(gt, out_video, max_val=1.)
+        val_res['lpips'] = lpips(gt, out_video)
+        val_res['fvd'] = fvd(gt, out_video)
 
         # save visualizations
         frames = {
@@ -74,8 +85,45 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             }
         self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/val')
 
-        val_res =  {'val_loss': loss.item()}
         return val_res
+
+def preprocess_video(video, permute=True, merge=True):
+    if permute:
+        video =  np.transpose(video, (0,1,3,4,2)) # put channels last
+    if merge:
+        video = np.reshape(video, (-1,) + video.shape[2:]).astype(np.float32)
+    return video
+
+def psnr(video_1, video_2, max_val):
+    video_1 = preprocess_video(video_1)
+    video_2 = preprocess_video(video_2)
+    assert video_1.shape == video_2.shape
+    mse = np.mean(np.square(video_1 - video_2), axis=(-3,-2,-1))
+    psnr_val = np.subtract(
+            20 * np.log(max_val) / np.log(10.0),
+            np.float32(10 / np.log(10)) * np.log(mse))
+    return np.mean(psnr_val).tolist()
+
+def ssim(video_1, video_2, max_val):
+    video_1 = preprocess_video(video_1)
+    video_2 = preprocess_video(video_2)
+    assert video_1.shape == video_2.shape
+    dist = np.array([structural_similarity(video_1[i], video_2[i], data_range=max_val, channel_axis=2) for i in range(len(video_1))])
+    return np.mean(dist).tolist()
+
+def lpips(video_1, video_2):
+    with torch.no_grad():
+        video_1 = 2 * torch.from_numpy(preprocess_video(video_1, permute=False)) - 1 # normalize [-1,1]
+        video_2 = 2 * torch.from_numpy(preprocess_video(video_2, permute=False)) - 1 # normalize [-1,1]
+        assert video_1.shape == video_2.shape
+        loss_fn_alex = LPIPS(net='alex') # best forward scores
+        dist = loss_fn_alex(video_1, video_2)
+        return np.mean(dist.numpy()).tolist()
+
+def fvd(video_1, video_2):
+    video_1 = preprocess_video(video_1, merge=False)
+    video_2 = preprocess_video(video_2, merge=False)
+    return tf_fvd(video_1, video_2)
 
 class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
     def get_readout_dataloader(self, datapaths):
