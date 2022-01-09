@@ -3,6 +3,7 @@ import numpy as np
 import logging
 import imageio
 import torch
+import torch.nn as nn
 import mlflow
 from skimage.metrics import structural_similarity
 from lpips import LPIPS
@@ -16,14 +17,47 @@ from physion.models.fitvid import FitVid
 N_VIS_PER_BATCH = 1
 BASE_FPS = 30
 
+class CustomDataParallel(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = nn.DataParallel(model)
+
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.model.module, name)
+
 class FitVidModel(PytorchModel):
     def get_model(self):
         model = FitVid(
             input_size=3, 
             n_past=self.pretraining_cfg.DATA.STATE_LEN, 
             **self.pretraining_cfg.MODEL
-            ).to(self.device)
-        return model
+            )
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            logging.info(f'Using {torch.cuda.device_count()} gpus')
+            model = CustomDataParallel(model)
+        return model.to(self.device)
+
+    def save_model(self, model_file):
+        logging.info(f'Saved model checkpoint to: {model_file}')
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            torch.save(self.model.model.module.state_dict(), model_file) # TODO: cleanup
+        else:
+            torch.save(self.model.state_dict(), model_file)
+
+    def load_model(self, model_file):
+        assert os.path.isfile(model_file), f'Cannot find model file: {model_file}'
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            self.model.model.module.load_state_dict(torch.load(model_file)) # TODO: cleanup
+        else:
+            self.model.load_state_dict(torch.load(model_file))
+        logging.info(f'Loaded existing ckpt from {model_file}')
+        return self.model
 
 class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
     def get_pretraining_dataloader(self, datapaths, train):
@@ -41,12 +75,13 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         self.model.train()
 
         model_output = self.model(data['images'].to(self.device)) # train video length = 12
-        loss = model_output['loss']
+        loss = model_output['loss'].mean() # assumes batch size for each gpu is the same
         assert self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE % self.pretraining_cfg.BATCH_SIZE == 0, \
             f'accumulation batch size ({self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE}) not divisible by batch size ({self.pretraining_cfg.BATCH_SIZE})'
         accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE // self.pretraining_cfg.BATCH_SIZE
+        logging.info(f'Using {accumulation_steps} accumulation steps of size {self.pretraining_cfg.BATCH_SIZE}')
         loss = loss / accumulation_steps # normalize loss since using average
-        loss.backward()
+        loss.backward() 
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2)
         if self.step % accumulation_steps == 0:
             self.optimizer.step()
@@ -67,7 +102,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         self.model.eval()
         with torch.no_grad():
             model_output = self.model(data['images'].to(self.device))
-            loss = model_output['loss']
+            loss = model_output['loss'].mean() # assumues batch size for each gpu is the same
             out_video = model_output['preds'][:, self.model.n_past-1:].cpu().numpy()
             gt = data['images'][:, self.model.n_past:].numpy()
 
