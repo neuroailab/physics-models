@@ -70,20 +70,20 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR)
         self.optimizer.zero_grad()
         self.count = 0
+        assert self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE % self.pretraining_cfg.BATCH_SIZE == 0, \
+            f'accumulation batch size ({self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE}) not divisible by batch size ({self.pretraining_cfg.BATCH_SIZE})'
+        self.accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE // self.pretraining_cfg.BATCH_SIZE
+        logging.info(f'Using {self.accumulation_steps} accumulation steps of size {self.pretraining_cfg.BATCH_SIZE}')
 
     def train_step(self, data):
         self.model.train()
 
         model_output = self.model(data['images'].to(self.device)) # train video length = 12
         loss = model_output['loss'].mean() # assumes batch size for each gpu is the same
-        assert self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE % self.pretraining_cfg.BATCH_SIZE == 0, \
-            f'accumulation batch size ({self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE}) not divisible by batch size ({self.pretraining_cfg.BATCH_SIZE})'
-        accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE // self.pretraining_cfg.BATCH_SIZE
-        logging.info(f'Using {accumulation_steps} accumulation steps of size {self.pretraining_cfg.BATCH_SIZE}')
-        loss = loss / accumulation_steps # normalize loss since using average
+        loss = loss / self.accumulation_steps # normalize loss since using average
         loss.backward() 
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2)
-        if self.step % accumulation_steps == 0:
+        if self.step % self.accumulation_steps == 0:
             self.optimizer.step()
             self.optimizer.zero_grad()
 
@@ -191,7 +191,7 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             for t in range(self.model.T):
                 h_pred = hidden[:, t]
                 s = self.model._broadcast_context_frame_skips(skips, frame=t, num_times=1)
-                # h_pred = torch.sigmoid(h_pred)
+                h_pred = torch.sigmoid(h_pred)
                 x_pred = self.model.decoder(h_pred.unsqueeze(1), s)[:,0]
 
                 observed_h_preds.append(h_pred)
