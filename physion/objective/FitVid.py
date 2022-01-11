@@ -69,7 +69,6 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         super().setup()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR)
         self.optimizer.zero_grad()
-        self.count = 0
         assert self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE % self.pretraining_cfg.BATCH_SIZE == 0, \
             f'accumulation batch size ({self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE}) not divisible by batch size ({self.pretraining_cfg.BATCH_SIZE})'
         self.accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE // self.pretraining_cfg.BATCH_SIZE
@@ -87,14 +86,14 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-        if self.count % self.pretraining_cfg.LOG_FREQ == 0: # TODO: change to using step intead of count
+        if self.step % self.pretraining_cfg.LOG_FREQ == 0: # TODO: change to using step intead of count
             # save visualizations
             frames = {
                 'gt': data['images'],
                 'sim': model_output['preds'].cpu().detach(),
                 'stimulus_name': data['stimulus_name'],
                 }
-            self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/train')
+            save_vis(frames, self.pretraining_cfg, self.output_dir, self.step, 'videos/train')
         return loss.item()
 
     def val_step(self, data):
@@ -118,7 +117,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             'sim': model_output['preds'].cpu(),
             'stimulus_name': data['stimulus_name'],
             }
-        self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count, 'videos/val')
+        save_vis(frames, self.pretraining_cfg, self.output_dir, self.vstep, f'videos/val/{self.step}')
 
         return val_res
 
@@ -168,7 +167,6 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
 
     def setup(self):
         super().setup()
-        self.count = 0
 
     def extract_feat_step(self, data):
         self.model.training = False
@@ -214,7 +212,7 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             'sim': preds.cpu(),
             'stimulus_name': data['stimulus_name'],
             }
-        self.count = save_vis(frames, self.pretraining_cfg, self.output_dir, self.count)
+        save_vis(frames, self.pretraining_cfg, self.output_dir, self.step, f'videos/{self.mode}')
 
         labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
@@ -266,4 +264,3 @@ def save_vis(frames, pretraining_cfg, output_dir, count=0, artifact_path='videos
             mlflow.log_artifact(fn, artifact_path=artifact_path)
             logging.info(f'Video written to {fn}')
         count += 1
-    return count
