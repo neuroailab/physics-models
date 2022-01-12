@@ -250,17 +250,16 @@ def add_rollout_border(arr, rollout_len):
     arr = np.concatenate([arr_inp, arr_pred], axis=0)
     return arr
 
-def save_vis(frames, pretraining_cfg, output_dir, count=0, artifact_path='videos'):
+def save_vis(frames, pretraining_cfg, output_dir, prefix=0, artifact_path='videos'):
     rollout_len = pretraining_cfg.DATA.SEQ_LEN - pretraining_cfg.DATA.STATE_LEN
     fps = BASE_FPS // pretraining_cfg.DATA.SUBSAMPLE_FACTOR
     n_vis_per_batch = min(pretraining_cfg.BATCH_SIZE, N_VIS_PER_BATCH)
     stimulus_name = frames.pop('stimulus_name')
     for i in range(n_vis_per_batch):
         for k,v in frames.items():
-            fn = os.path.join(output_dir, f'{count:06}_'+stimulus_name[i]+f'_{k}.mp4')
+            fn = os.path.join(output_dir, f'{prefix}_{i:02}_'+stimulus_name[i]+f'_{k}.mp4')
             arr = (255*torch.permute(v[i], (0,2,3,1)).numpy()).astype(np.uint8)
             arr = add_rollout_border(arr, rollout_len)
             imageio.mimwrite(fn, arr, fps=fps, macro_block_size=None)
             mlflow.log_artifact(fn, artifact_path=artifact_path)
             logging.info(f'Video written to {fn}')
-        count += 1
