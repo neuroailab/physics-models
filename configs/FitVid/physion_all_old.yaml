@@ -42,7 +42,7 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FitVid
-    LOAD_STEP: 420000
+    LOAD_STEP: 460000
 
 READOUT:
     PROTOCOLS: ['simulated', 'observed', 'input']
