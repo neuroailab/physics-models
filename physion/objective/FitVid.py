@@ -257,7 +257,7 @@ def save_vis(frames, pretraining_cfg, output_dir, prefix=0, artifact_path='video
     stimulus_name = frames.pop('stimulus_name')
     for i in range(n_vis_per_batch):
         for k,v in frames.items():
-            fn = os.path.join(output_dir, f'{prefix}_{i:02}_'+stimulus_name[i]+f'_{k}.mp4')
+            fn = os.path.join(output_dir, f'{prefix:06}_{i:02}_'+stimulus_name[i]+f'_{k}.mp4')
             arr = (255*torch.permute(v[i], (0,2,3,1)).numpy()).astype(np.uint8)
             arr = add_rollout_border(arr, rollout_len)
             imageio.mimwrite(fn, arr, fps=fps, macro_block_size=None)
