@@ -69,9 +69,12 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         super().setup()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.pretraining_cfg.TRAIN.LR)
         self.optimizer.zero_grad()
-        assert self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE % self.pretraining_cfg.BATCH_SIZE == 0, \
-            f'accumulation batch size ({self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE}) not divisible by batch size ({self.pretraining_cfg.BATCH_SIZE})'
-        self.accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE // self.pretraining_cfg.BATCH_SIZE
+        if 'ACCUMULATION_BATCH_SIZE' in self.pretraining_cfg.TRAIN:
+            assert self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE % self.pretraining_cfg.BATCH_SIZE == 0, \
+                f'accumulation batch size ({self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE}) not divisible by batch size ({self.pretraining_cfg.BATCH_SIZE})'
+            self.accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_BATCH_SIZE // self.pretraining_cfg.BATCH_SIZE
+        else: # for backwards compatibility
+            self.accumulation_steps = self.pretraining_cfg.TRAIN.ACCUMULATION_STEPS
         logging.info(f'Using {self.accumulation_steps} accumulation steps of size {self.pretraining_cfg.BATCH_SIZE}')
 
     def train_step(self, data):
