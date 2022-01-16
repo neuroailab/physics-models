@@ -78,10 +78,12 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         logging.info(f'Using {self.accumulation_steps} accumulation steps of size {self.pretraining_cfg.BATCH_SIZE}')
 
     def train_step(self, data):
+        self.model.training = True
         self.model.train()
 
         model_output = self.model(data['images'].to(self.device)) # train video length = 12
         loss = model_output['loss'].mean() # assumes batch size for each gpu is the same
+        print(f'loss before norm: {loss.item()}')
         loss = loss / self.accumulation_steps # normalize loss since using average
         loss.backward() 
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2)
@@ -89,11 +91,15 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-        if self.step % self.pretraining_cfg.LOG_FREQ == 0: # TODO: change to using step intead of count
+        if self.step % self.pretraining_cfg.LOG_FREQ == 0:
+            # get model preds under eval mode
+            self.model.training = False
+            self.model.eval()
+            model_output_eval = self.model(data['images'].to(self.device))
             # save visualizations
             frames = {
                 'gt': data['images'],
-                'sim': model_output['preds'].cpu().detach(),
+                'sim': model_output_eval['preds'].cpu().detach(),
                 'stimulus_name': data['stimulus_name'],
                 }
             save_vis(frames, self.pretraining_cfg, self.output_dir, self.step, 'videos/train')
