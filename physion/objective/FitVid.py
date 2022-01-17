@@ -83,7 +83,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
 
         model_output = self.model(data['images'].to(self.device)) # train video length = 12
         loss = model_output['loss'].mean() # assumes batch size for each gpu is the same
-        print(f'loss before norm: {loss.item()}')
+        loss_val = loss.item() # get loss val before normalizing
         loss = loss / self.accumulation_steps # normalize loss since using average
         loss.backward() 
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2)
@@ -103,7 +103,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
                 'stimulus_name': data['stimulus_name'],
                 }
             save_vis(frames, self.pretraining_cfg, self.output_dir, self.step, 'videos/train')
-        return loss.item()
+        return loss_val
 
     def val_step(self, data):
         self.model.training = False
