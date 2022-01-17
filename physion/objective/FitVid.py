@@ -188,24 +188,10 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             gt = data['images'][:, self.model.n_past:].numpy()
 
             # get observed states
-            video = data['images'].to(self.device)
-            self.model.B, self.model.T = video.shape[:2]
-            pred_s = self.model.frame_predictor.init_states(self.model.B, video.device)
-            prior_s = self.model.prior.init_states(self.model.B, video.device)
             hidden, skips = self.model.encoder(data['images'].to(self.device))
-            observed_preds  = []
-            observed_h_preds = []
-            for t in range(self.model.T):
-                h_pred = hidden[:, t]
-                s = self.model._broadcast_context_frame_skips(skips, frame=t, num_times=1)
-                h_pred = torch.sigmoid(h_pred)
-                x_pred = self.model.decoder(h_pred.unsqueeze(1), s)[:,0]
-
-                observed_h_preds.append(h_pred)
-                observed_preds.append(x_pred)
-
-            observed_hs = torch.stack(observed_h_preds, 1).cpu().numpy()
-            observed_preds = torch.stack(observed_preds, 1)
+            observed_hs = torch.sigmoid(hidden)
+            observed_preds = self.model.decoder(observed_hs, skips)
+            observed_hs = observed_hs.cpu().numpy()
 
         val_res = {}
         val_res['psnr'] = psnr(gt, out_video, max_val=1.)
@@ -227,9 +213,9 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
         rollout_len = self.pretraining_cfg.DATA.SEQ_LEN - self.pretraining_cfg.DATA.STATE_LEN
         output = {
-            'input_states': h_preds[:,:-rollout_len],
-            'observed_states': observed_hs[:,-rollout_len:], 
-            'simulated_states': h_preds[:,-rollout_len:],
+            'input_states': observed_hs[:,:-rollout_len], # encoded input frames
+            'observed_states': observed_hs[:,-rollout_len:], # encoded future frames
+            'simulated_states': h_preds[:,-rollout_len:], # predicted future states
             'labels': labels,
             'stimulus_name': stimulus_name,
             }
