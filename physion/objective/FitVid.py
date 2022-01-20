@@ -118,7 +118,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         val_res['psnr'] = psnr(gt, out_video, max_val=1.)
         val_res['ssim'] = ssim(gt, out_video, max_val=1.)
         val_res['lpips'] = lpips(gt, out_video)
-        val_res['fvd'] = fvd(gt, out_video)
+        # val_res['fvd'] = fvd(gt, out_video)
 
         # save visualizations
         frames = {
@@ -197,8 +197,8 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
         val_res['psnr'] = psnr(gt, out_video, max_val=1.)
         val_res['ssim'] = ssim(gt, out_video, max_val=1.)
         val_res['lpips'] = lpips(gt, out_video)
-        val_res['fvd'] = fvd(gt, out_video)
-        mlflow.log_metrics(val_res) # TODO: use batch index as step
+        # val_res['fvd'] = fvd(gt, out_video)
+        mlflow.log_metrics(val_res, step=self.step) 
 
         # save visualizations
         frames = {
@@ -209,7 +209,7 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             }
         save_vis(frames, self.pretraining_cfg, self.output_dir, self.step, f'videos/{self.mode}')
 
-        labels = data['binary_labels'].cpu().numpy()[:,1:] # skip first label to match length of preds -- all the same anyways
+        labels = data['binary_labels'].cpu().numpy()
         stimulus_name = np.array(data['stimulus_name'], dtype=object)
         rollout_len = self.pretraining_cfg.DATA.SEQ_LEN - self.pretraining_cfg.DATA.STATE_LEN
         output = {
