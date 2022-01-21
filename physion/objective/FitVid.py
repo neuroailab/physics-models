@@ -113,6 +113,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         with torch.no_grad():
             model_output = self.model(data['images'].to(self.device))
             loss = model_output['loss'].mean() # assumues batch size for each gpu is the same
+            # only compare part after input frames
             out_video = model_output['preds'][:, self.model.n_past:].cpu().numpy()
             gt = data['images'][:, self.model.n_past:].numpy()
 
@@ -142,7 +143,7 @@ def preprocess_video(video, permute=True, merge=True):
 def psnr(video_1, video_2, max_val):
     video_1 = preprocess_video(video_1)
     video_2 = preprocess_video(video_2)
-    assert video_1.shape == video_2.shape
+    assert video_1.shape == video_2.shape, (video_1.shape, video_2.shape)
     mse = np.mean(np.square(video_1 - video_2), axis=(-3,-2,-1))
     psnr_val = np.subtract(
             20 * np.log(max_val) / np.log(10.0),
@@ -186,7 +187,8 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             model_output = self.model(data['images'].to(self.device))
             preds = model_output['preds']
             h_preds = model_output['h_preds'].cpu().numpy()
-            out_video = model_output['preds'][:, self.model.n_past-1:].cpu().numpy()
+            # only compare part after input frames
+            out_video = model_output['preds'][:, self.model.n_past:].cpu().numpy()
             gt = data['images'][:, self.model.n_past:].numpy()
 
             # get observed states
