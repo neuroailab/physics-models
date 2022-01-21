@@ -258,13 +258,16 @@ def save_vis(frames, pretraining_cfg, output_dir, prefix=0, artifact_path='video
     n_vis_per_batch = min(pretraining_cfg.BATCH_SIZE, N_VIS_PER_BATCH)
     stimulus_name = frames.pop('stimulus_name')
     for i in range(n_vis_per_batch):
+        arrs = []
         for k,v in frames.items():
             curr_stim = stimulus_name[i]
             if type(curr_stim) == bytes:
                 curr_stim = curr_stim.decode('utf-8')
-            fn = os.path.join(output_dir, f'{prefix:06}_{i:02}_{curr_stim}_{k}.mp4')
             arr = (255*torch.permute(v[i], (0,2,3,1)).numpy()).astype(np.uint8)
             arr = add_rollout_border(arr, rollout_len, 4)
-            imageio.mimwrite(fn, arr, fps=fps, macro_block_size=None)
-            mlflow.log_artifact(fn, artifact_path=artifact_path)
-            logging.info(f'Video written to {fn}')
+            arrs.append(arr)
+        arr = np.concatenate(arrs, axis=2) # concatenate along width
+        fn = os.path.join(output_dir, f'{prefix:06}_{i:02}_{curr_stim}.mp4')
+        imageio.mimwrite(fn, arr, fps=fps, macro_block_size=None)
+        mlflow.log_artifact(fn, artifact_path=artifact_path)
+        logging.info(f'Video written to {fn}')
