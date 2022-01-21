@@ -529,6 +529,9 @@ class FitVid(nn.Module):
         mse = nn.MSELoss()(preds, video[:, 1:])
         loss = mse + kld * self.beta
 
+        pad = [0,0] * (preds.dim()-2) + [1,0] + [0,0] # (BS, T, C, H, W) => (W, H, C, T, BS) since torch pad starts from last dim and moves forward
+        preds = torch.nn.functional.pad(preds, pad)# add single black frame to beginning of preds to match gt length
+
         metrics = {
             'hist/mean': means,
             'hist/logvars': logvars,

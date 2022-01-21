@@ -113,7 +113,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
         with torch.no_grad():
             model_output = self.model(data['images'].to(self.device))
             loss = model_output['loss'].mean() # assumues batch size for each gpu is the same
-            out_video = model_output['preds'][:, self.model.n_past-1:].cpu().numpy()
+            out_video = model_output['preds'][:, self.model.n_past:].cpu().numpy()
             gt = data['images'][:, self.model.n_past:].numpy()
 
         val_res =  {'val_loss': loss.item()}
