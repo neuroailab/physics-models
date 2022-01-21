@@ -91,7 +91,7 @@ class PretrainingObjective(FitVidModel, PretrainingObjectiveBase):
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-        vis_freq = getattr(self.pretraining_cfg, 'VIS_FREQ', self.pretraining_cfg.LOG_FREQ) # use log_freq as vis_freq if not found 
+        vis_freq = getattr(self.pretraining_cfg.TRAIN, 'VIS_FREQ', self.pretraining_cfg.LOG_FREQ) # use log_freq as vis_freq if not found 
         if self.step % vis_freq == 0:
             # get model preds under eval mode
             self.model.training = False
