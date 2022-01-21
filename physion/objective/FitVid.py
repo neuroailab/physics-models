@@ -243,7 +243,13 @@ def add_border(arr, color=[0,255,0], width_frac=0.01):
     arr = np.stack([rb, gb, bb], axis=-1)
     return arr
 
-def add_rollout_border(arr, rollout_len, resize_factor=1):
+def add_rollout_border(arr, rollout_len, target_size=128):
+    assert type(arr) == np.ndarray
+    assert arr.ndim == 4  # (T, H, W, C)
+    assert arr.shape[3] == 3, arr.shape
+
+    H, W = arr.shape[1:3]
+    resize_factor = target_size / min(H,W) # resize so min dim is target size
     if resize_factor != 1:
         arr = scipy.ndimage.zoom(arr, (1,resize_factor, resize_factor, 1))
     arr_inp = arr[:-rollout_len]
@@ -253,7 +259,7 @@ def add_rollout_border(arr, rollout_len, resize_factor=1):
     arr = np.concatenate([arr_inp, arr_pred], axis=0)
     return arr
 
-def save_vis(input_frames, pretraining_cfg, output_dir, prefix=0, artifact_path='videos', resize_factor=1):
+def save_vis(input_frames, pretraining_cfg, output_dir, prefix=0, artifact_path='videos', target_size=128):
     rollout_len = pretraining_cfg.DATA.SEQ_LEN - pretraining_cfg.DATA.STATE_LEN
     fps = BASE_FPS // pretraining_cfg.DATA.SUBSAMPLE_FACTOR
     n_vis_per_batch = min(pretraining_cfg.BATCH_SIZE, N_VIS_PER_BATCH)
@@ -265,7 +271,7 @@ def save_vis(input_frames, pretraining_cfg, output_dir, prefix=0, artifact_path=
             if type(curr_stim) == bytes:
                 curr_stim = curr_stim.decode('utf-8')
             arr = (255*torch.permute(arr[i], (0,2,3,1)).numpy()).astype(np.uint8) # (T,C,H,W) => (T,H,W,C), then [0.,1.] => [0, 255]
-            arr = add_rollout_border(arr, rollout_len, resize_factor)
+            arr = add_rollout_border(arr, rollout_len, target_size)
 
             # add lbl text to video
             frames = []
