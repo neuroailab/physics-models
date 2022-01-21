@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import mlflow
 import scipy
+import cv2
 from skimage.metrics import structural_similarity
 from lpips import LPIPS
 from  physion.frechet_video_distance import fvd as tf_fvd
@@ -197,12 +198,12 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             observed_preds = self.model.decoder(observed_hs, skips)
             observed_hs = observed_hs.cpu().numpy()
 
-        val_res = {}
-        val_res['psnr'] = psnr(gt, out_video, max_val=1.)
-        val_res['ssim'] = ssim(gt, out_video, max_val=1.)
-        val_res['lpips'] = lpips(gt, out_video)
+        # val_res = {}
+        # val_res['psnr'] = psnr(gt, out_video, max_val=1.)
+        # val_res['ssim'] = ssim(gt, out_video, max_val=1.)
+        # val_res['lpips'] = lpips(gt, out_video)
         # val_res['fvd'] = fvd(gt, out_video)
-        mlflow.log_metrics(val_res, step=self.step) 
+        # mlflow.log_metrics(val_res, step=self.step) 
 
         # save visualizations
         frames = {
@@ -252,19 +253,50 @@ def add_rollout_border(arr, rollout_len, resize_factor=1):
     arr = np.concatenate([arr_inp, arr_pred], axis=0)
     return arr
 
-def save_vis(frames, pretraining_cfg, output_dir, prefix=0, artifact_path='videos'):
+def save_vis(input_frames, pretraining_cfg, output_dir, prefix=0, artifact_path='videos', resize_factor=1):
     rollout_len = pretraining_cfg.DATA.SEQ_LEN - pretraining_cfg.DATA.STATE_LEN
     fps = BASE_FPS // pretraining_cfg.DATA.SUBSAMPLE_FACTOR
     n_vis_per_batch = min(pretraining_cfg.BATCH_SIZE, N_VIS_PER_BATCH)
-    stimulus_name = frames.pop('stimulus_name')
+    stimulus_name = input_frames.pop('stimulus_name')
     for i in range(n_vis_per_batch):
         arrs = []
-        for k,v in frames.items():
+        for lbl, arr in input_frames.items():
             curr_stim = stimulus_name[i]
             if type(curr_stim) == bytes:
                 curr_stim = curr_stim.decode('utf-8')
-            arr = (255*torch.permute(v[i], (0,2,3,1)).numpy()).astype(np.uint8)
-            arr = add_rollout_border(arr, rollout_len, 4)
+            arr = (255*torch.permute(arr[i], (0,2,3,1)).numpy()).astype(np.uint8) # (T,C,H,W) => (T,H,W,C), then [0.,1.] => [0, 255]
+            arr = add_rollout_border(arr, rollout_len, resize_factor)
+
+            # add lbl text to video
+            frames = []
+            H, W = arr.shape[1:3]
+            for frame in arr:
+                frame = np.copy(frame) # since text is added to frame in-place
+                buf = 0.05 # buffer percentage 
+                thickness = 1
+                # add black border
+                cv2.putText(frame, 
+                    text=lbl.upper(),
+                    org=(int(buf*W),int((1-buf)*H)), # Point uses (col, row), put in bottom left
+                    fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                    fontScale=1*min(H,W)/256,
+                    color=(0,0,0), # black
+                    thickness=2*thickness,
+                    lineType=cv2.LINE_AA,
+                    )
+                # put white text
+                cv2.putText(frame, 
+                    text=lbl.upper(),
+                    org=(int(buf*W),int((1-buf)*H)), # Point uses (col, row), put in bottom left
+                    fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                    fontScale=1*min(H,W)/256,
+                    color=(255,255,255), # white
+                    thickness=thickness,
+                    lineType=cv2.LINE_AA,
+                    )
+                frames.append(frame)
+            arr = np.stack(frames)
+
             arrs.append(arr)
         arr = np.concatenate(arrs, axis=2) # concatenate along width
         fn = os.path.join(output_dir, f'{prefix:06}_{i:02}_{curr_stim}.mp4')
