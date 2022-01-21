@@ -5,6 +5,7 @@ import imageio
 import torch
 import torch.nn as nn
 import mlflow
+import scipy
 from skimage.metrics import structural_similarity
 from lpips import LPIPS
 from  physion.frechet_video_distance import fvd as tf_fvd
@@ -222,13 +223,14 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
             }
         return output
             
-def add_border(arr, color=[0,255,0]):
+def add_border(arr, color=[0,255,0], width_frac=0.01):
     assert type(arr) == np.ndarray
-    assert arr.ndim == 4 
+    assert arr.ndim == 4  # (T, H, W, C)
     assert arr.shape[3] == 3, arr.shape
 
-    width = int(0.025 * max(*arr.shape[2:]))
+    width = max(int(np.ceil(width_frac * max(*arr.shape[2:]))), 1) # at least 1 pixel wide
     pad_width = [(0,0), (width, width), (width, width)]
+    arr = arr[:,width:-width,width:-width,:] # erode image by width, so size is same after adding border
     assert len(color) == 3
     r_cons, g_cons, b_cons = color
     r_, g_, b_ = arr[:, :, :, 0], arr[:, :, :, 1], arr[:, :, :, 2]
@@ -238,7 +240,9 @@ def add_border(arr, color=[0,255,0]):
     arr = np.stack([rb, gb, bb], axis=-1)
     return arr
 
-def add_rollout_border(arr, rollout_len):
+def add_rollout_border(arr, rollout_len, resize_factor=1):
+    if resize_factor != 1:
+        arr = scipy.ndimage.zoom(arr, (1,resize_factor, resize_factor, 1))
     arr_inp = arr[:-rollout_len]
     arr_inp = add_border(arr_inp, [255, 0, 0])
     arr_pred = arr[-rollout_len:]
@@ -258,7 +262,7 @@ def save_vis(frames, pretraining_cfg, output_dir, prefix=0, artifact_path='video
                 curr_stim = curr_stim.decode('utf-8')
             fn = os.path.join(output_dir, f'{prefix:06}_{i:02}_{curr_stim}_{k}.mp4')
             arr = (255*torch.permute(v[i], (0,2,3,1)).numpy()).astype(np.uint8)
-            arr = add_rollout_border(arr, rollout_len)
+            arr = add_rollout_border(arr, rollout_len, 4)
             imageio.mimwrite(fn, arr, fps=fps, macro_block_size=None)
             mlflow.log_artifact(fn, artifact_path=artifact_path)
             logging.info(f'Video written to {fn}')
