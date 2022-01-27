@@ -220,7 +220,7 @@ class ExtractionObjective(FitVidModel, ExtractionObjectiveBase):
         output = {
             'input_states': observed_hs[:,:-rollout_len], # encoded input frames
             'observed_states': observed_hs[:,-rollout_len:], # encoded future frames
-            'simulated_states': h_preds[:,-rollout_len:], # predicted future states
+            'simulated_states': h_preds[:,-rollout_len:], # rollout predicted future states
             'labels': labels,
             'stimulus_name': stimulus_name,
             }
