@@ -17,7 +17,6 @@ DATA_SPACE:
         pretraining_protocols: ['all']
         readout_protocol: 'minimal'
 
-SKIP_PRETRAINING: True
 PRETRAINING:
     VAL_FREQ: 10000
     CKPT_FREQ: 5000
@@ -39,10 +38,11 @@ PRETRAINING:
         STATE_LEN: 7
         SEQ_LEN: 25
         SUBSAMPLE_FACTOR: 6
+SKIP_PRETRAINING: True
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FitVid
-    LOAD_STEP: 460000
+    LOAD_STEP: 350000
 
 READOUT:
     PROTOCOLS: ['simulated', 'observed', 'input']

@@ -22,10 +22,11 @@ PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.FitVid
     MODEL_NAME: 'FitVid'
     TRAIN_STEPS: 1000000
-    BATCH_SIZE: 4
+    BATCH_SIZE: 8
     TRAIN:
         LR: 1.e-3
         ACCUMULATION_BATCH_SIZE: 128
+        # VIS_FREQ: 1000
     MODEL:
         z_dim: 10
         beta: 1.e-4
@@ -40,8 +41,9 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FitVid
-#     LOAD_STEP: 85000
-# SKIP_PRETRAINING: True
+    LOAD_STEP: 265000
+    NOTE: 'original pred'
+SKIP_PRETRAINING: True
 
 READOUT:
     PROTOCOLS: ['simulated', 'observed', 'input']

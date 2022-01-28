@@ -19,12 +19,12 @@ DATA_SPACE:
 PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.CSWM
     MODEL_NAME: 'CSWM'
-    TRAIN_STEPS: 1000
+    TRAIN_STEPS: 100000
     BATCH_SIZE: 32
-    VAL_FREQ: 1000
-    CKPT_FREQ: 100
+    VAL_FREQ: 5000
+    CKPT_FREQ: 5000
     TRAIN:
-        LR: 5.e-4
+        LR: 5.e-6 # reduced from 5e-4
     MODEL: 
         # ENCODER: 'medium'
         ENCODER: 'fitvid'
@@ -45,7 +45,7 @@ EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.CSWM
 
 READOUT:
-    PROTOCOLS: ['simulated']
+    PROTOCOLS: ['simulated', 'observed', 'input']
 
 CONFIG:
     EXPERIMENT_NAME: 'physion-cswm-fitvid'
