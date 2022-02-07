@@ -20,11 +20,11 @@ PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.CSWM
     MODEL_NAME: 'CSWM'
     TRAIN_STEPS: 100000
-    BATCH_SIZE: 32
-    VAL_FREQ: 5000
-    CKPT_FREQ: 5000
+    BATCH_SIZE: 512
+    VAL_FREQ: 1000
+    CKPT_FREQ: 1000
     TRAIN:
-        LR: 5.e-6 # reduced from 5e-4
+        LR: 5.e-4
     MODEL: 
         # ENCODER: 'medium'
         ENCODER: 'fitvid'
@@ -38,11 +38,13 @@ PRETRAINING:
     DATA:
         STATE_LEN: 7
         SEQ_LEN: 25
-        IMSIZE: 224
+        IMSIZE: 64
         SUBSAMPLE_FACTOR: 6
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.CSWM
+    LOAD_STEP: 34000
+SKIP_PRETRAINING: True
 
 READOUT:
     PROTOCOLS: ['simulated', 'observed', 'input']
