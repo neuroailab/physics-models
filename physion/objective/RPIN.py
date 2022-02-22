@@ -61,20 +61,22 @@ class TDWDataset(TDWDatasetBase):
                 for i, obj_id in enumerate(object_ids):
                     obj_id = i # TODO
                     vertices_orig, faces_orig = get_vertices_scaled(f, obj_id)
-                    if len(vertices_orig) == 0 or len(faces_orig) == 0:
+                    if len(vertices_orig) == 0 or len(faces_orig) == 0: # TODO
                         continue
                     all_pts, all_edges, all_faces = get_full_bbox(vertices_orig)
                     frame_pts = get_transformed_pts(f, all_pts, frame, obj_id)
                     xyxys.append(compute_bboxes(frame_pts, f))
                 bboxes.append(xyxys)
 
-            rois = torch.from_numpy(np.array(bboxes, dtype=np.float32))
+            rois = np.array(bboxes, dtype=np.float32)
             num_objs = rois.shape[1]
             max_objs = 15 # self.pretraining_cfg.MODEL.RPIN.NUM_OBJS # TODO
+            assert num_objs <= max_objs, f'num objs {num_objs} greater than max objs {max_objs}'
             ignore_mask = np.ones(max_objs, dtype=np.float32)
             if num_objs < max_objs:
                 rois = np.pad(rois, [(0,0), (0, max_objs-num_objs), (0,0)])
                 ignore_mask[num_objs:] = 0
+            rois = torch.from_numpy(rois)
             images = torch.stack(images, dim=0)
             labels = torch.ones((self.seq_len, 1)) if target_contacted_zone else torch.zeros((self.seq_len, 1)) # Get single label over whole sequence
             stimulus_name = f['static']['stimulus_name'][()]
@@ -86,7 +88,8 @@ class TDWDataset(TDWDatasetBase):
             'data_last': images[:self.state_len],
             'ignore_mask': torch.from_numpy(ignore_mask),
             'stimulus_name': stimulus_name,
-            'binary_labels': labels[self.state_len:],
+            'binary_labels': labels,
+            'images': images,
         }
         return sample
 
@@ -97,13 +100,30 @@ class ExtractionObjective(RPINModel, ExtractionObjectiveBase):
         return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle, 0)
 
     def extract_feat_step(self, data):
+        self.model.eval()
+        with torch.no_grad():
+            labels = data['binary_labels'].cpu().numpy()
+            stimulus_name = np.array(data['stimulus_name'], dtype=object)
+            images, boxes, data_last, ignore_idx = [data[k] for k in ['images', 'rois', 'data_last', 'ignore_mask']]
+            images = images.to(self.device)
+            rois, coor_features = init_rois(boxes, images.shape)
+            rois = rois.to(self.device)
+            coor_features = coor_features.to(self.device)
+            ignore_idx = ignore_idx.to(self.device)
+            outputs = self.model(images, rois, coor_features, num_rollouts=self.pretraining_cfg.MODEL.RPIN.PRED_SIZE_TEST,
+                                 data_pred=data_last, phase='test', ignore_idx=ignore_idx)
+        input_states = torch.flatten(outputs['input_states'], 2).cpu().numpy()
+        observed_states = torch.flatten(outputs['encoded_states'], 2).cpu().numpy()
+        simulated_states = torch.flatten(outputs['rollout_states'], 2).cpu().numpy()
+            
         output = {
-            # 'input_states':
-            # 'observed_states':
-            # 'simulated_states':
-            # 'labels':
-            # 'stimulus_name':
+            'input_states': input_states,
+            'observed_states': observed_states,
+            'simulated_states': simulated_states,
+            'labels': labels,
+            'stimulus_name': stimulus_name,
             }
+        # print([(k,v.shape) for k,v in output.items()])
         return output
 
 class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
@@ -176,13 +196,13 @@ class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
         self.off_step_losses = [0.0 for _ in range(self.ptest_size)]
         # an statistics of each validation
 
-    def loss(self, outputs, labels, phase='train', ignore_idx=None):
+    def loss(self, outputs, labels, phase='train', ignore_idx=None): # TODO: just pass bbox_rollouts instead of full output?
         C = self.pretraining_cfg.MODEL
         valid_length = self.ptrain_size if phase == 'train' else self.ptest_size
 
         bbox_rollouts = outputs['bbox']
         # of shape (batch, time, #obj, 4)
-        print(bbox_rollouts.shape, labels.shape)
+        # print(bbox_rollouts.shape, labels.shape)
         loss = (bbox_rollouts - labels) ** 2
         # take mean except time axis, time axis is used for diagnosis
         ignore_idx = ignore_idx[:, None, :, None].to('cuda')
