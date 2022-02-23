@@ -24,7 +24,7 @@ PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.RPIN
     MODEL_NAME: 'RPIN'
     TRAIN_STEPS: 1000000
-    BATCH_SIZE: 8
+    BATCH_SIZE: 16
     TRAIN:
         LR: 1.e-3
         WEIGHT_DECAY: 1.e-6

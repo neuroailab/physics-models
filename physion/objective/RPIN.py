@@ -76,22 +76,31 @@ class TDWDataset(TDWDatasetBase):
             if num_objs < max_objs:
                 rois = np.pad(rois, [(0,0), (0, max_objs-num_objs), (0,0)])
                 ignore_mask[num_objs:] = 0
+            labels = torch.from_numpy(build_labels(rois)[self.state_len-1:])
             rois = torch.from_numpy(rois)
             images = torch.stack(images, dim=0)
-            labels = torch.ones((self.seq_len, 1)) if target_contacted_zone else torch.zeros((self.seq_len, 1)) # Get single label over whole sequence
+            binary_labels = torch.ones((self.seq_len, 1)) if target_contacted_zone else torch.zeros((self.seq_len, 1)) # Get single label over whole sequence
             stimulus_name = f['static']['stimulus_name'][()]
 
         sample = {
             'data': images[:self.state_len],
             'rois': rois,
-            'labels': rois[self.state_len:],
+            'labels': labels,
             'data_last': images[:self.state_len],
             'ignore_mask': torch.from_numpy(ignore_mask),
             'stimulus_name': stimulus_name,
-            'binary_labels': labels,
+            'binary_labels': binary_labels,
             'images': images,
         }
         return sample
+
+def build_labels(rois):
+        assert rois.ndim == 3, rois.shape # (T, K, 4)
+        assert rois.shape[-1] == 4, rois.shape
+        pos = (rois[:,:,:2] + rois[:,:,2:] ) / 2 # get x,y pos
+        off = pos[1:] - pos[:-1] # get x,y offset
+        labels = np.concatenate([off, pos[1:]], axis=-1)
+        return labels
 
 class ExtractionObjective(RPINModel, ExtractionObjectiveBase):
     def get_readout_dataloader(self, datapaths):
