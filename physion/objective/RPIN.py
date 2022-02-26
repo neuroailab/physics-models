@@ -3,6 +3,9 @@ import numpy as np
 from collections import defaultdict
 import torch
 import torch.nn.functional as F
+import imageio
+from skimage.draw import line_aa
+import mlflow
 
 from physopt.objective.utils import PRETRAINING_PHASE_NAME, READOUT_PHASE_NAME
 from physopt.objective import PretrainingObjectiveBase, ExtractionObjectiveBase
@@ -20,6 +23,8 @@ import h5py
 import json
 from PIL import Image
 from torchvision import transforms
+
+N_VIS = 1
 
 class RPINModel(PytorchModel):
     def get_model(self):
@@ -48,7 +53,7 @@ class TDWDataset(TDWDatasetBase):
                 transforms.Resize((self.imsize, self.imsize)),
                 transforms.ToTensor(),
                 ])
-            bboxes = []
+            rois = []
             object_ids = np.array(f['static']['object_ids'])
             for frame in frames[start_idx:end_idx:self.subsample_factor]:
                 img = f['frames'][frame]['images']['_img'][()]
@@ -65,12 +70,13 @@ class TDWDataset(TDWDatasetBase):
                         continue
                     all_pts, all_edges, all_faces = get_full_bbox(vertices_orig)
                     frame_pts = get_transformed_pts(f, all_pts, frame, obj_id)
-                    xyxys.append(compute_bboxes(frame_pts, f))
-                bboxes.append(xyxys)
+                    bboxes = (compute_bboxes(frame_pts, f) * (self.imsize-1)) # scale from [0,1] to [0,H/W]
+                    xyxys.append(bboxes)
+                rois.append(xyxys)
 
-            rois = np.array(bboxes, dtype=np.float32)
+            rois = np.array(rois, dtype=np.float32)
             num_objs = rois.shape[1]
-            max_objs = 15 # self.pretraining_cfg.MODEL.RPIN.NUM_OBJS # TODO
+            max_objs = 15 # self.pretraining_cfg.MODEL.RPIN.NUM_OBJS # TODO: do padding elsewhere?
             assert num_objs <= max_objs, f'num objs {num_objs} greater than max objs {max_objs}'
             ignore_mask = np.ones(max_objs, dtype=np.float32)
             if num_objs < max_objs:
@@ -85,7 +91,7 @@ class TDWDataset(TDWDatasetBase):
         sample = {
             'data': images[:self.state_len],
             'rois': rois,
-            'labels': labels,
+            'labels': labels, # [off, pos]
             'data_last': images[:self.state_len],
             'ignore_mask': torch.from_numpy(ignore_mask),
             'stimulus_name': stimulus_name,
@@ -101,6 +107,52 @@ def build_labels(rois):
         off = pos[1:] - pos[:-1] # get x,y offset
         labels = np.concatenate([off, pos[1:]], axis=-1)
         return labels
+
+def save_vis(frames, rois, labels, bbox, stimulus_name, output_dir, prefix=0, artifact_path='videos'):
+    # print(frames.shape, rois.shape, labels.shape, bbox.shape)
+    BS, T, _, H, W = frames.shape
+    n_vis = min(BS, N_VIS)
+    fps = 30 / 9
+    for i in range(n_vis):
+        curr_stim = stimulus_name[i]
+        if type(curr_stim) == bytes:
+            curr_stim = curr_stim.decode('utf-8')
+        # labels = build_labels(rois[i].numpy()).astype(np.uint8)
+        arr = []
+        images = torch.permute(255*frames[i], (0,2,3,1)).numpy().astype(np.uint8)
+        for t in range(T):
+            image = images[t]
+            for k in range(rois.shape[2]):
+                off = T-labels.shape[1]
+                if t >= off:
+                    # x,y = labels[t-off, k,-2:]
+                    x,y = labels[i,t-off,k,-2:].numpy().astype(np.uint8)
+                    image[y-2:y+2,x-2:x+2] = np.ones((1,3)) * 255
+                    x, y = bbox[i, t-off,k,-2:].numpy().astype(np.uint8)
+                    image[y-2:y+2,x-2:x+2] = np.array([[255,0,0]])
+                image = add_bbox(image, rois[i,t,k])
+            arr.append(image)
+        arr = np.stack(arr)
+
+        fn = os.path.join(output_dir, f'{prefix:06}_{i:02}_{curr_stim}.mp4')
+        imageio.mimwrite(fn, arr, fps=fps)
+        mlflow.log_artifact(fn, artifact_path=artifact_path)
+
+def add_bbox(image, roi, color=np.array([255,0,0])):
+    x1, y1, x2, y2 = roi.numpy().astype(np.uint8)
+    if x1==x2 and y1==y2:
+        return image
+    image = add_line(image, y1, x1, y1, x2)
+    image = add_line(image, y2, x1, y2, x2)
+    image = add_line(image, y1, x1, y2, x1)
+    image = add_line(image, y1, x2, y2, x2)
+    return image
+
+def add_line(image, y1, x1, y2, x2):
+    # rr, cc, val = weighted_line(y1, x1, y2, x2, 5)
+    rr, cc, val = line_aa(y1, x1, y2, x2)
+    image[rr, cc] = val.reshape(-1,1).astype(np.uint8) * 255
+    return image
 
 class ExtractionObjective(RPINModel, ExtractionObjectiveBase):
     def get_readout_dataloader(self, datapaths):
@@ -124,6 +176,8 @@ class ExtractionObjective(RPINModel, ExtractionObjectiveBase):
         input_states = torch.flatten(outputs['input_states'], 2).cpu().numpy()
         observed_states = torch.flatten(outputs['encoded_states'], 2).cpu().numpy()
         simulated_states = torch.flatten(outputs['rollout_states'], 2).cpu().numpy()
+
+        save_vis(data['images'], data['rois'], data['labels'], outputs['bbox'].cpu(), stimulus_name, self.output_dir, self.step, f'videos/{self.mode}')
             
         output = {
             'input_states': input_states,
@@ -209,10 +263,9 @@ class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
         C = self.pretraining_cfg.MODEL
         valid_length = self.ptrain_size if phase == 'train' else self.ptest_size
 
-        bbox_rollouts = outputs['bbox']
-        # of shape (batch, time, #obj, 4)
-        # print(bbox_rollouts.shape, labels.shape)
-        loss = (bbox_rollouts - labels) ** 2
+        bbox_rollouts = outputs['bbox'] # of shape (batch, time, #obj, 4)
+        # print(bbox_rollouts[0,0,:3], labels[0,0,:3])
+        loss = (bbox_rollouts - labels) ** 2 # TODO: normalize bbox before computing loss?
         # take mean except time axis, time axis is used for diagnosis
         ignore_idx = ignore_idx[:, None, :, None].to('cuda')
         loss = loss * ignore_idx
@@ -303,7 +356,7 @@ def compute_bboxes(points, f):
 
 def rescale_xyxy(xyxy):
     xyxy = np.clip(xyxy, -1, 1) # ensure [-1,1]
-    xyxy = (xyxy + 1) / 2 # scale to [0,1]
+    xyxy = (xyxy + 1.) / 2. # scale to [0,1]
     return xyxy
 
 def get_vertices_scaled(f, obj_id):
