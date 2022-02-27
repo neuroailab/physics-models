@@ -205,21 +205,27 @@ class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
         )
         
         # self._adjust_learning_rate() # TODO
-        data, boxes, labels, data_last, ignore_idx = [data[k] for k in ['data', 'rois', 'labels', 'data_last', 'ignore_mask']]
+        stimulus_name = np.array(data['stimulus_name'], dtype=object)
+        images, boxes, labels, data_last, ignore_idx = [data[k] for k in ['data', 'rois', 'labels', 'data_last', 'ignore_mask']]
 
-        data = data.to(self.device)
+        images = images.to(self.device)
         labels = labels.to(self.device)
-        rois, coor_features = init_rois(boxes, data.shape)
+        rois, coor_features = init_rois(boxes, images.shape)
         rois = rois.to(self.device)
         coor_features = coor_features.to(self.device)
         ignore_idx = ignore_idx.to(self.device)
-        # print(data.dtype, labels.dtype, rois.dtype, coor_features.dtype, ignore_idx.dtype)
+        # print(images.dtype, labels.dtype, rois.dtype, coor_features.dtype, ignore_idx.dtype)
         optim.zero_grad()
-        outputs = self.model(data, rois, coor_features, num_rollouts=self.ptrain_size,
+        outputs = self.model(images, rois, coor_features, num_rollouts=self.ptrain_size,
                              data_pred=data_last, phase='train', ignore_idx=ignore_idx)
         loss = self.loss(outputs, labels, 'train', ignore_idx)
         loss.backward()
         optim.step()
+
+        vis_freq = getattr(self.pretraining_cfg.TRAIN, 'VIS_FREQ', 100*self.pretraining_cfg.LOG_FREQ) # use 100*log_freq as vis_freq if not found 
+        if self.step % vis_freq == 0:
+            self.model.eval()
+            save_vis(data['images'], data['rois'], data['labels'], outputs['bbox'].detach().cpu(), stimulus_name, self.output_dir, self.step, f'videos/train')
 
         return loss.item() # scalar loss value for the step
 
@@ -264,8 +270,8 @@ class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
         valid_length = self.ptrain_size if phase == 'train' else self.ptest_size
 
         bbox_rollouts = outputs['bbox'] # of shape (batch, time, #obj, 4)
-        # print(bbox_rollouts[0,0,:3], labels[0,0,:3])
-        loss = (bbox_rollouts - labels) ** 2 # TODO: normalize bbox before computing loss?
+        print(bbox_rollouts[0,0,:3], labels[0,0,:3])
+        loss = ((bbox_rollouts - labels)/(self.pretraining_cfg.DATA.IMSIZE-1)) ** 2 # normalize bbox before computing loss
         # take mean except time axis, time axis is used for diagnosis
         ignore_idx = ignore_idx[:, None, :, None].to('cuda')
         loss = loss * ignore_idx
