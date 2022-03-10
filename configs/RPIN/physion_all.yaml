@@ -6,12 +6,15 @@ DATA_SPACE:
         scenarios: ['Collide'] 
         pretraining:
             train:
-                dir: 'physion_data/pretraining_train'
+                # dir: 'physion_data/pretraining_train'
+                dir: 'physion_data/pretraining_train_debug_new'
             test:
-                dir: 'physion_data/pretraining_val'
+                # dir: 'physion_data/pretraining_val'
+                dir: 'physion_data/pretraining_train_debug_new'
         readout:
             train:
-                dir: 'physion_data/readout_train_redyellow'
+                dir: 'physion_data/pretraining_train_debug_new'
+                # dir: 'physion_data/readout_train_redyellow'
             test:
                 dir: 'physion_data/readout_test_redyellow'
         # pretraining_protocols: ['all']
@@ -20,15 +23,15 @@ DATA_SPACE:
 
 PRETRAINING:
     VAL_FREQ: 5000
-    CKPT_FREQ: 5000
+    CKPT_FREQ: 1000
     OBJECTIVE_MODULE: physion.objective.RPIN
     MODEL_NAME: 'RPIN'
     TRAIN_STEPS: 1000000
     BATCH_SIZE: 16
     TRAIN:
-        LR: 1.e-3
+        VIS_FREQ: 1
+        LR: 2.e-4
         WEIGHT_DECAY: 1.e-6
-        # VIS_FREQ: 1000
     MODEL:
         RPIN:
             BACKBONE: 'hourglass'
@@ -42,16 +45,16 @@ PRETRAINING:
             # input setting:
             INPUT_HEIGHT: 256
             INPUT_WIDTH: 256
-            NUM_OBJS: 15
+            NUM_OBJS: 10
             # data augmentation
-            HORIZONTAL_FLIP: True
-            VERTICAL_FLIP: True
+            HORIZONTAL_FLIP: False # True
+            VERTICAL_FLIP: False # True
             # loss weight
             OFFSET_LOSS_WEIGHT: 100.0
             POSITION_LOSS_WEIGHT: 1.0
             # ----- image feature
-            IMAGE_UP: True
-            ROI_POOL_SIZE: 1
+            IMAGE_UP: False # True
+            ROI_POOL_SIZE: 3 # 1
             # ----- coordinate feature
             COOR_FEATURE: True
             COOR_FEATURE_EMBEDDING: True
@@ -62,13 +65,15 @@ PRETRAINING:
             VAE_KL_LOSS_WEIGHT: 3e-5
             DISCOUNT_TAU: 0.01
     DATA:
-        IMSIZE: 224
+        IMSIZE: 256 # 224
         STATE_LEN: 5
         SEQ_LEN: 16
         SUBSAMPLE_FACTOR: 9
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.RPIN
+#     LOAD_STEP: 5000
+# SKIP_PRETRAINING: True
 
 READOUT:
     PROTOCOLS: ['simulated', 'observed', 'input']

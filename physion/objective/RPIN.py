@@ -24,8 +24,6 @@ import json
 from PIL import Image
 from torchvision import transforms
 
-N_VIS = 1
-
 class RPINModel(PytorchModel):
     def get_model(self):
         model = Net(self.pretraining_cfg.MODEL)
@@ -54,29 +52,37 @@ class TDWDataset(TDWDatasetBase):
                 transforms.ToTensor(),
                 ])
             rois = []
-            object_ids = np.array(f['static']['object_ids'])
+            # object_ids = np.array(f['static']['object_ids'])
+            prev_bboxes = np.zeros_like(f['frames']['0000']['bboxes'][()])
             for frame in frames[start_idx:end_idx:self.subsample_factor]:
                 img = f['frames'][frame]['images']['_img'][()]
-                img = Image.open(io.BytesIO(img)) # (256, 256, 3)
-                img = img_transforms(img)
+                if img.ndim == 1:
+                    img = Image.open(io.BytesIO(img)) # (256, 256, 3)
+                else:
+                    img = Image.fromarray(img)
+                img = img_transforms(img) # TODO: also need to rescale bboxes if resizing image
                 images.append(img)
-                xyxys = []
-                # print(len(object_ids), object_ids)
-                # print([k for k in f['static']['mesh'].keys() if 'vertices' in k])
-                for i, obj_id in enumerate(object_ids):
-                    obj_id = i # TODO
-                    vertices_orig, faces_orig = get_vertices_scaled(f, obj_id)
-                    if len(vertices_orig) == 0 or len(faces_orig) == 0: # TODO
-                        continue
-                    all_pts, all_edges, all_faces = get_full_bbox(vertices_orig)
-                    frame_pts = get_transformed_pts(f, all_pts, frame, obj_id)
-                    bboxes = (compute_bboxes(frame_pts, f) * (self.imsize-1)) # scale from [0,1] to [0,H/W]
-                    xyxys.append(bboxes)
-                rois.append(xyxys)
+                bboxes = f['frames'][frame]['bboxes'][()]
+                # bboxes = []
+                # # print(len(object_ids), object_ids)
+                # # print([k for k in f['static']['mesh'].keys() if 'vertices' in k])
+                # for i, obj_id in enumerate(object_ids):
+                #     obj_id = i # TODO
+                #     vertices_orig, faces_orig = get_vertices_scaled(f, obj_id)
+                #     if len(vertices_orig) == 0 or len(faces_orig) == 0: # TODO
+                #         continue
+                #     all_pts, all_edges, all_faces = get_full_bbox(vertices_orig)
+                #     frame_pts = get_transformed_pts(f, all_pts, frame, obj_id)
+                #     bbox = (compute_bboxes(frame_pts, f) * (self.imsize-1)) # scale from [0,1] to [0,H/W]
+                #     bboxes.append(bbox)
+                # bboxes = np.clip(bboxes, 0, None) # convert -1 for occluded objects to 0
+                bboxes = np.where(bboxes==-1, prev_bboxes, bboxes)
+                prev_bboxes = bboxes
+                rois.append(bboxes)
 
             rois = np.array(rois, dtype=np.float32)
             num_objs = rois.shape[1]
-            max_objs = 15 # self.pretraining_cfg.MODEL.RPIN.NUM_OBJS # TODO: do padding elsewhere?
+            max_objs = 10 # self.pretraining_cfg.MODEL.RPIN.NUM_OBJS # TODO: do padding elsewhere?
             assert num_objs <= max_objs, f'num objs {num_objs} greater than max objs {max_objs}'
             ignore_mask = np.ones(max_objs, dtype=np.float32)
             if num_objs < max_objs:
@@ -108,26 +114,25 @@ def build_labels(rois):
         labels = np.concatenate([off, pos[1:]], axis=-1)
         return labels
 
-def save_vis(frames, rois, labels, bbox, stimulus_name, output_dir, prefix=0, artifact_path='videos'):
+def save_vis(frames, rois, labels, bbox, ignore_idx, stimulus_name, output_dir, prefix=0, artifact_path='videos', n_vis=1):
     # print(frames.shape, rois.shape, labels.shape, bbox.shape)
     BS, T, _, H, W = frames.shape
-    n_vis = min(BS, N_VIS)
     fps = 30 / 9
-    for i in range(n_vis):
+    for i in range(min(n_vis, BS)):
         curr_stim = stimulus_name[i]
         if type(curr_stim) == bytes:
             curr_stim = curr_stim.decode('utf-8')
         # labels = build_labels(rois[i].numpy()).astype(np.uint8)
         arr = []
         images = torch.permute(255*frames[i], (0,2,3,1)).numpy().astype(np.uint8)
+        n_objs = int(ignore_idx[i].sum().item()) # ignore_idx: (BS, K)
         for t in range(T):
             image = images[t]
-            for k in range(rois.shape[2]):
+            for k in range(n_objs):
                 off = T-labels.shape[1]
                 if t >= off:
-                    # x,y = labels[t-off, k,-2:]
                     x,y = labels[i,t-off,k,-2:].numpy().astype(np.uint8)
-                    image[y-2:y+2,x-2:x+2] = np.ones((1,3)) * 255
+                    image[y-1:y+1,x-1:x+1] = np.ones((1,3)) * 255
                     x, y = bbox[i, t-off,k,-2:].numpy().astype(np.uint8)
                     image[y-2:y+2,x-2:x+2] = np.array([[255,0,0]])
                 image = add_bbox(image, rois[i,t,k])
@@ -177,7 +182,7 @@ class ExtractionObjective(RPINModel, ExtractionObjectiveBase):
         observed_states = torch.flatten(outputs['encoded_states'], 2).cpu().numpy()
         simulated_states = torch.flatten(outputs['rollout_states'], 2).cpu().numpy()
 
-        save_vis(data['images'], data['rois'], data['labels'], outputs['bbox'].cpu(), stimulus_name, self.output_dir, self.step, f'videos/{self.mode}')
+        save_vis(data['images'], data['rois'], data['labels'], outputs['bbox'].cpu(), ignore_idx, stimulus_name, self.output_dir, self.step, f'videos/{self.mode}')
             
         output = {
             'input_states': input_states,
@@ -194,6 +199,7 @@ class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
         random_seq = True # get random slice of video during pretraining
         shuffle = True if train else False # no need to shuffle for validation
         return self.get_dataloader(TDWDataset, datapaths, random_seq, shuffle, 0)
+        # return self.get_dataloader(TDWDataset, datapaths, False, False, 0)
 
     def train_step(self, data):
         self.model.train() # set to train mode
@@ -225,7 +231,7 @@ class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
         vis_freq = getattr(self.pretraining_cfg.TRAIN, 'VIS_FREQ', 100*self.pretraining_cfg.LOG_FREQ) # use 100*log_freq as vis_freq if not found 
         if self.step % vis_freq == 0:
             self.model.eval()
-            save_vis(data['images'], data['rois'], data['labels'], outputs['bbox'].detach().cpu(), stimulus_name, self.output_dir, self.step, f'videos/train')
+            save_vis(data['images'], data['rois'], data['labels'], outputs['bbox'].detach().cpu(), ignore_idx, stimulus_name, self.output_dir, self.step, f'videos/train')
 
         return loss.item() # scalar loss value for the step
 
@@ -270,40 +276,43 @@ class PretrainingObjective(RPINModel, PretrainingObjectiveBase):
         valid_length = self.ptrain_size if phase == 'train' else self.ptest_size
 
         bbox_rollouts = outputs['bbox'] # of shape (batch, time, #obj, 4)
-        print(bbox_rollouts[0,0,:3], labels[0,0,:3])
-        loss = ((bbox_rollouts - labels)/(self.pretraining_cfg.DATA.IMSIZE-1)) ** 2 # normalize bbox before computing loss
+        rollout_steps = bbox_rollouts.shape[1]
+        # print(bbox_rollouts[0,:,:3], labels[0,:rollout_steps,:3])
+        loss = (bbox_rollouts - labels[:,:rollout_steps]) ** 2 # (BS, rollout_len, 4)
+        # loss /= (self.pretraining_cfg.DATA.IMSIZE - 1)**2 # normalize by imsize, squared since loss is squared
         # take mean except time axis, time axis is used for diagnosis
         ignore_idx = ignore_idx[:, None, :, None].to('cuda')
         loss = loss * ignore_idx
         loss = loss.sum(2) / ignore_idx.sum(2)
         loss[..., 0:2] = loss[..., 0:2] * self.offset_loss_weight
         loss[..., 2:4] = loss[..., 2:4] * self.position_loss_weight
-        o_loss = loss[..., 0:2]  # offset
-        p_loss = loss[..., 2:4]  # position
+        # o_loss = loss[..., 0:2]  # offset
+        # p_loss = loss[..., 2:4]  # position
 
-        for i in range(valid_length):
-            self.pos_step_losses[i] += p_loss[:, i].sum(0).sum(-1).mean().item()
-            self.off_step_losses[i] += o_loss[:, i].sum(0).sum(-1).mean().item()
+        # for i in range(valid_length):
+        #     self.pos_step_losses[i] += p_loss[:, i].sum(0).sum(-1).mean().item()
+        #     self.off_step_losses[i] += o_loss[:, i].sum(0).sum(-1).mean().item()
 
-        p1_loss = self.pos_step_losses[:self.ptrain_size]
-        p2_loss = self.pos_step_losses[self.ptrain_size:]
-        self.losses['p_1'] = np.mean(p1_loss)
-        self.losses['p_2'] = np.mean(p2_loss)
+        # p1_loss = self.pos_step_losses[:self.ptrain_size]
+        # p2_loss = self.pos_step_losses[self.ptrain_size:]
+        # self.losses['p_1'] = np.mean(p1_loss)
+        # self.losses['p_2'] = np.mean(p2_loss)
 
-        o1_loss = self.off_step_losses[:self.ptrain_size]
-        o2_loss = self.off_step_losses[self.ptrain_size:]
-        self.losses['o_1'] = np.mean(o1_loss)
-        self.losses['o_2'] = np.mean(o2_loss)
+        # o1_loss = self.off_step_losses[:self.ptrain_size]
+        # o2_loss = self.off_step_losses[self.ptrain_size:]
+        # self.losses['o_1'] = np.mean(o1_loss)
+        # self.losses['o_2'] = np.mean(o2_loss)
 
         # no need to do precise batch statistics, just do mean for backward gradient
-        loss = loss.mean(0)
-        pred_length = loss.shape[0]
-        init_tau = C.RPIN.DISCOUNT_TAU ** (1 / self.ptrain_size)
-        tau = init_tau + (self.step / self.pretraining_cfg.TRAIN_STEPS) * (1 - init_tau)
-        tau = torch.pow(tau, torch.arange(pred_length, out=torch.FloatTensor()))[:, None]
-        # tau = torch.cat([torch.ones(self.cons_size, 1), tau], dim=0).to('cuda')
-        tau = tau.to(self.device)
-        loss = ((loss * tau) / tau.sum(axis=0, keepdims=True)).sum()
+        # loss = loss.mean(0)
+        # pred_length = loss.shape[0]
+        # init_tau = C.RPIN.DISCOUNT_TAU ** (1 / self.ptrain_size)
+        # tau = init_tau + (self.step / self.pretraining_cfg.TRAIN_STEPS) * (1 - init_tau)
+        # tau = torch.pow(tau, torch.arange(pred_length, out=torch.FloatTensor()))[:, None]
+        # # tau = torch.cat([torch.ones(self.cons_size, 1), tau], dim=0).to('cuda')
+        # tau = tau.to(self.device)
+        # loss = ((loss * tau) / tau.sum(axis=0, keepdims=True)).sum()
+        loss = loss.mean(0).sum()
 
         if C.RPIN.VAE and phase == 'train':
             kl_loss = outputs['kl_loss']
