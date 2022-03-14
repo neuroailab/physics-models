@@ -29,9 +29,50 @@ class RPINModel(PytorchModel):
         model = Net(self.pretraining_cfg.MODEL)
         return model.to(self.device)
 
+def xyxy_to_xywh(x1, y1, x2, y2):
+    x = (x1+x2)/2
+    y = (y1+y2)/2
+    w = (x2-x1)/2
+    h = (y2-y1)/2
+    return x,y,w,h
+
+def xywh_to_xyxy(x, y, w, h):
+    x1 = x - w
+    x2 = x + w
+    y1 = y - h
+    y2 = y + h
+    return x1,y1,x2,y2
+
+def compute_bboxes_from_mask(id_img, colors, tol=0.1):
+    bboxes = []
+    for color in colors:
+        if not color.any(): # all zeros
+            continue
+        idxs = np.argwhere(id_img==color)
+        if len(idxs) > 0:
+            x1 = np.min(idxs[:,1])
+            x2 = np.max(idxs[:,1])
+            y1 = np.min(idxs[:,0])
+            y2 = np.max(idxs[:,0])
+            xyxy = np.array([x1,y1,x2,y2])
+            x,y,w,h = xyxy_to_xywh(*xyxy)
+            w, h = w*(1+tol), h*(1+tol)
+            xyxy = np.clip(xywh_to_xyxy(x,y,w,h), 0, id_img.shape[0]-1).astype(np.uint8)
+        else:
+            xyxy = -np.ones(4)
+        bboxes.append(xyxy)
+    return bboxes
+
+def get_colors(f):
+    id_img = np.array(f['frames']['0000']['images']['_id'][()]) # first frame, assumes all objects are in view
+    id_img = np.array(Image.open(io.BytesIO(id_img))) # (256, 256, 3)
+    colors = np.unique(id_img.reshape(-1, id_img.shape[2]), axis=0) # full list of unique colors in id map
+    return colors
+
 class TDWDataset(TDWDatasetBase):
     def __getitem__(self, index):
         with h5py.File(self.hdf5_files[index], 'r') as f: # load ith hdf5 file from list
+            colors = get_colors(f)
             frames = list(f['frames'])
             target_contacted_zone = False
             for frame in reversed(frames):
@@ -53,7 +94,7 @@ class TDWDataset(TDWDatasetBase):
                 ])
             rois = []
             # object_ids = np.array(f['static']['object_ids'])
-            prev_bboxes = np.zeros_like(f['frames']['0000']['bboxes'][()])
+            prev_bboxes = 0
             for frame in frames[start_idx:end_idx:self.subsample_factor]:
                 img = f['frames'][frame]['images']['_img'][()]
                 if img.ndim == 1:
@@ -62,7 +103,12 @@ class TDWDataset(TDWDatasetBase):
                     img = Image.fromarray(img)
                 img = img_transforms(img) # TODO: also need to rescale bboxes if resizing image
                 images.append(img)
-                bboxes = f['frames'][frame]['bboxes'][()]
+                if 'bboxes' in f['frames'][frame]:
+                    bboxes = f['frames'][frame]['bboxes'][()]
+                else:
+                    id_img = f['frames'][frame]['images']['_id'][()]
+                    id_img = np.array(Image.open(io.BytesIO(id_img))) # (256, 256, 3)
+                    bboxes = compute_bboxes_from_mask(id_img, colors)
                 # bboxes = []
                 # # print(len(object_ids), object_ids)
                 # # print([k for k in f['static']['mesh'].keys() if 'vertices' in k])
@@ -76,8 +122,7 @@ class TDWDataset(TDWDatasetBase):
                 #     bbox = (compute_bboxes(frame_pts, f) * (self.imsize-1)) # scale from [0,1] to [0,H/W]
                 #     bboxes.append(bbox)
                 # bboxes = np.clip(bboxes, 0, None) # convert -1 for occluded objects to 0
-                bboxes = np.where(bboxes==-1, prev_bboxes, bboxes)
-                prev_bboxes = bboxes
+                bboxes, prev_bboxes = np.where(bboxes==-1, prev_bboxes, bboxes), bboxes
                 rois.append(bboxes)
 
             rois = np.array(rois, dtype=np.float32)
