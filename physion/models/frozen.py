@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
 import clip
-import pdb
 
 # ---Encoders---
 # Generates latent representation for an image
@@ -56,6 +55,18 @@ class DINO_pretrained(nn.Module):
         normalize = transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.228, 0.224, 0.225))
         x = normalize(x)
         return self.dino(x)
+
+class ResNet50_pretrained(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
+        self.latent_dim = self.resnet.fc.in_features
+        self.resnet.fc = nn.Identity() # remove final fc
+
+    def forward(self, x):
+        normalize = transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.228, 0.224, 0.225))
+        x = normalize(x)
+        return self.resnet(x)
 
 # ---Dynamics---
 # Given a sequence of latent representations, generates the next latent
@@ -142,8 +153,10 @@ def _get_encoder(encoder):
         return CLIP_pretrained
     elif encoder == 'dino':
         return DINO_pretrained
+    elif encoder == 'resnet50':
+        return ResNet50_pretrained
     else:
-        raise NotImplementedError
+        raise NotImplementedError(encoder)
 
 def _get_dynamics(dynamics):
     if dynamics == 'id':
@@ -153,5 +166,5 @@ def _get_dynamics(dynamics):
     elif dynamics == 'lstm':
         return LSTM
     else:
-        raise NotImplementedError
+        raise NotImplementedError(dynamics)
     
