@@ -307,5 +307,6 @@ def save_vis(input_frames, pretraining_cfg, output_dir, prefix=0, artifact_path=
         arr = np.concatenate(arrs, axis=2) # concatenate along width
         fn = os.path.join(output_dir, f'{prefix:06}_{i:02}_{curr_stim}.mp4')
         imageio.mimwrite(fn, arr, fps=fps, macro_block_size=None)
-        mlflow.log_artifact(fn, artifact_path=artifact_path)
         logging.info(f'Video written to {fn}')
+        if artifact_path is not None:
+            mlflow.log_artifact(fn, artifact_path=artifact_path)
