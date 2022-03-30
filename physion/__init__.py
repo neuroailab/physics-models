@@ -53,15 +53,14 @@ def download_from_s3(bucket, key, filepath):
     s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
     s3.download_file(bucket, key, filepath)
 
-def load_fitvid():
-    home = get_basedir()
-    modelpath = os.path.join(home, "model.pt")
-
-    if not os.path.exists(modelpath):
-        download_from_s3('physion-physopt', '02bae92d9a4d4fa98537548ca80aa53a/artifacts/step_400000/model_ckpts/model.pt', modelpath)
-
+def load_fitvid(pretrained=True):
     model = FitVid(**FITVID_CFG)
-    model.load_state_dict(torch.load(modelpath))
+    if pretrained:
+        home = get_basedir()
+        modelpath = os.path.join(home, "model.pt")
+        if not os.path.exists(modelpath):
+            download_from_s3('physion-physopt', '02bae92d9a4d4fa98537548ca80aa53a/artifacts/step_400000/model_ckpts/model.pt', modelpath)
+        model.load_state_dict(torch.load(modelpath))
     return model
 
 def test_load_fitvid(): # test pretrained fitvid on example video
