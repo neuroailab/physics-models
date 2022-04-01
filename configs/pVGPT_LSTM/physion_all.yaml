@@ -1,6 +1,6 @@
 DATA_SPACE:
     MODULE: physion.data_space
-    SEEDS: [1,2,3]
+    SEEDS: [0]
     KWARGS:
         scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
         file_pattern: '*.hdf5'
@@ -19,8 +19,8 @@ DATA_SPACE:
 
 PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.FROZEN
-    MODEL_NAME: 'pR3M_MLP'
-    TRAIN_STEPS: 0
+    MODEL_NAME: 'pVGPT_LSTM'
+    TRAIN_STEPS: 1000
     BATCH_SIZE: 32
     VAL_FREQ: 1000
     CKPT_FREQ: 100
@@ -35,10 +35,6 @@ PRETRAINING:
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FROZEN
-
-READOUT:
-    MODEL:
-        LOGSPACE: [-2,-2,1]
 
 CONFIG:
     EXPERIMENT_NAME: 'physion-frozen'
