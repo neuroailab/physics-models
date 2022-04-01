@@ -1,5 +1,7 @@
 import os
+import sys
 import re
+import glob
 import logging
 import csv
 import pickle
@@ -37,6 +39,8 @@ def process_results(results, old_names=False):
     count = 0
     processed = set()
     for i, (stim_name, test_proba, label) in enumerate(zip(results['stimulus_name'], results['test_proba'], results['labels'])):
+        if isinstance(stim_name, (bytes, bytearray)):
+            stim_name = stim_name.decode('utf-8')
         if stim_name in processed:
             logging.info('Duplicated item: {}'.format(stim_name))
         else:
@@ -100,8 +104,18 @@ def get_model_attributes(model):
             'Encoder Training Task': 'Image Reconstruction',
             'Dynamics Training Task': 'Image Reconstruction',
             }
+    elif model == 'FitVid':
+        return {
+            'Encoder Type': 'NVAE encoder',
+            'Dynamics Type': 'LSTM',
+            'Encoder Pre-training Task': 'null', 
+            'Encoder Pre-training Dataset': 'null', 
+            'Encoder Pre-training Seed': 'null', 
+            'Encoder Training Task': 'Image Reconstruction',
+            'Dynamics Training Task': 'Image Reconstruction',
+            }
     else:
-        raise NotImplementedError
+        raise NotImplementedError(model)
 
 def write_metrics(results, metrics_file):
     file_exists = os.path.isfile(metrics_file) # check before opening file
@@ -114,9 +128,17 @@ def write_metrics(results, metrics_file):
     logging.info('%d results written to %s' % (len(results), metrics_file))
 
 if __name__ == '__main__':
+    Log_Format = "%(levelname)s %(asctime)s - %(message)s"
+
+    logging.basicConfig(stream = sys.stdout, 
+                        filemode = "w",
+                        format = Log_Format, 
+                        level = logging.INFO)
+
     output_dir = input('Enter output dir:') # TODO
-    for protocol in ['input', 'simulated', 'observed']:
-        results_file = os.path.join(output_dir, protocol+'_metrics_results.pkl')
+    results_files = glob.glob(os.path.join(output_dir, '*_metrics_results*.pkl'))
+    for results_file in results_files:
+        logging.info(f'Processing: {results_file}')
         results = pickle.load(open(results_file, 'rb'))
         processed_results = process_results(results, True) # change to old names
         metrics_file = os.path.join(output_dir, f'{results["model_name"]}-{results["readout_name"]}-results.csv')
