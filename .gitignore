@@ -1,5 +1,4 @@
-*.swp
-*.swo
+*.sw[a-z]
 .venv/
 physion.egg-info
 __pycache__/

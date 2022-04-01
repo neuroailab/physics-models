@@ -60,7 +60,7 @@ class DINO_pretrained(nn.Module):
 class ResNet50_pretrained(nn.Module):
     def __init__(self):
         super().__init__()
-        self.resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
+        self.resnet = torch.hub.load('pytorch/vision:v0.8.2', 'resnet50', pretrained=True)
         self.latent_dim = self.resnet.fc.in_features
         self.resnet.fc = nn.Identity() # remove final fc
 
