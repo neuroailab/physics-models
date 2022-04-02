@@ -70,7 +70,7 @@ def process_results(results, old_names=False):
     return output
 
 def get_model_attributes(model):
-    frozen_pattern = 'p([A-Z]+)_([A-Z]+)'
+    frozen_pattern = 'p(\w+)_([A-Z]+)'
     if model == 'CSWM':
         return {
             'Encoder Type': 'CSWM encoder',
@@ -137,6 +137,7 @@ if __name__ == '__main__':
 
     output_dir = input('Enter output dir:') # TODO
     results_files = glob.glob(os.path.join(output_dir, '*_metrics_results*.pkl'))
+    assert len(results_files) > 0, 'No files found!'
     for results_file in results_files:
         logging.info(f'Processing: {results_file}')
         results = pickle.load(open(results_file, 'rb'))
