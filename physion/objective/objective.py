@@ -1,4 +1,5 @@
 import os
+import pickle
 import logging
 import re
 import numpy as np
@@ -12,6 +13,7 @@ from sklearn.pipeline import Pipeline
 
 from torch.utils.data import DataLoader
 from physopt.objective import ReadoutObjectiveBase, PhysOptModel
+from physion.objective.utils import process_results, write_metrics
 
 class PytorchModel(PhysOptModel):
     def __init__(self, *args, **kwargs): # TODO: better to not use init for this?
@@ -33,7 +35,7 @@ class PytorchModel(PhysOptModel):
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
 
-    def get_dataloader(self, TDWDataset, datapaths, random_seq, shuffle):
+    def get_dataloader(self, TDWDataset, datapaths, random_seq, shuffle, num_workers=2):
         cfg = self.pretraining_cfg
         dataset = TDWDataset(
             data_root=datapaths,
@@ -45,7 +47,7 @@ class PytorchModel(PhysOptModel):
             subsample_factor=cfg.DATA.SUBSAMPLE_FACTOR,
             seed=self.seed,
             )
-        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
+        dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=num_workers)
         return dataloader
 
 class PhysionReadoutObjective(ReadoutObjectiveBase):
@@ -71,3 +73,14 @@ class PhysionReadoutObjective(ReadoutObjectiveBase):
         results['best_params'] = readout_model.best_params_
         results['cv_results'] = readout_model.cv_results_
         return results
+
+    def call(self, args):
+        super().call(args)
+        # create physion-style CSV of model results
+        for protocol in self.readout_cfg.PROTOCOLS:
+            results_file = os.path.join(self.output_dir, protocol+'_metrics_results.pkl')
+            results = pickle.load(open(results_file, 'rb'))
+            processed_results = process_results(results, True) # change to old names
+            metrics_file = os.path.join(self.output_dir, f'{results["model_name"]}-{results["readout_name"]}-results.csv')
+            write_metrics(processed_results, metrics_file)
+        mlflow.log_artifact(metrics_file, artifact_path='metrics')
