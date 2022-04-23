@@ -1,10 +1,7 @@
-from torchvision.models import vgg16_bn
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
-import clip
-from r3m import load_r3m
 
 # ---Encoders---
 # Generates latent representation for an image
@@ -24,6 +21,7 @@ class DEIT_pretrained(nn.Module):
 
 class VGG16_pretrained(nn.Module):
     def __init__(self):
+        from torchvision.models import vgg16_bn
         super(VGG16_pretrained, self).__init__()
         self.vgg = vgg16_bn(pretrained=True)
         self.vgg.classifier = nn.Sequential(*[self.vgg.classifier[i] for i in [0,1,3]]) # get up to second fc w/o dropout
@@ -36,6 +34,7 @@ class VGG16_pretrained(nn.Module):
 
 class CLIP_pretrained(nn.Module):
     def __init__(self):
+        import clip
         super().__init__()
         self.clip, _ = clip.load("ViT-B/32", jit=False)
         self.clip_vision = self.clip.encode_image
@@ -71,6 +70,7 @@ class ResNet50_pretrained(nn.Module):
 
 class R3M_pretrained(nn.Module):
     def __init__(self):
+        from r3m import load_r3m
         super().__init__()
         self.r3m = load_r3m('resnet50')
         self.latent_dim = 2048 # resnet50 final fc in_features
