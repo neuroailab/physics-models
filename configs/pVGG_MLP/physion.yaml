@@ -33,7 +33,10 @@ PRETRAINING:
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FROZEN
 
+READOUT:
+    OBJECTIVE_MODULE: physion.objective.objective
+
 CONFIG:
     EXPERIMENT_NAME: 'physion'
-    POSTGRES: 
-        DBNAME: 'physion-physopt'
+    HOSTPORT: 'localhost:5444'
+    DBNAME: 'physion-physopt'
