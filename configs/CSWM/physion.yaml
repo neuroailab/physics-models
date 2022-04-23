@@ -1,13 +1,19 @@
 DATA_SPACE:
     MODULE: physion.data_space
-    SEEDS: (0,)
+    SEEDS: [0]
     KWARGS:
-        pretraining_train_dir: 'physion_data/pretraining_train'
-        pretraining_test_dir: 'physion_data/pretraining_val'
-        pretraining_scenarios: ('Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support')
-        pretraining_protocols: ('only', 'abo', 'all')
-        readout_train_dir: 'physion_data/readout_train_redyellow'
-        readout_test_dir: 'physion_data/readout_test_redyellow'
+        scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
+        pretraining:
+            train:
+                dir: 'physion_data/pretraining_train'
+            test:
+                dir: 'physion_data/pretraining_val'
+        readout:
+            train:
+                dir: 'physion_data/readout_train_redyellow'
+            test:
+                dir: 'physion_data/readout_test_redyellow'
+        pretraining_protocols: ['all', 'abo', 'only']
         readout_protocol: 'minimal'
 
 PRETRAINING:
