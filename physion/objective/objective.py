@@ -50,7 +50,7 @@ class PytorchModel(PhysOptModel):
         dataloader = DataLoader(dataset, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=num_workers)
         return dataloader
 
-class PhysionReadoutObjective(ReadoutObjectiveBase):
+class ReadoutObjective(ReadoutObjectiveBase):
     def get_readout_model(self):
         steps = [('clf', LogisticRegression(max_iter=self.readout_cfg.MODEL.MAX_ITER))]
         if self.readout_cfg.MODEL.NORM_INPUT:
