@@ -37,6 +37,6 @@ EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FROZEN
 
 CONFIG:
-    EXPERIMENT_NAME: 'physion-frozen'
-    # POSTGRES: 
-    #     DBNAME: 'physion-physopt'
+    EXPERIMENT_NAME: 'physion'
+    POSTGRES: 
+        DBNAME: 'physion-physopt'
