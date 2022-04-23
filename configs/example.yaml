@@ -6,14 +6,14 @@ DATA_SPACE:
         file_pattern: '*.hdf5'
         pretraining:
             train:
-                dir: '/data1/eliwang/physion_example_data/pretraining_train'
+                dir: '[DATA_DIR]/physion_example_data/pretraining_train'
             test:
-                dir: '/data1/eliwang/physion_example_data/pretraining_val'
+                dir: '[DATA_DIR]/physion_example_data/pretraining_val'
         readout:
             train:
-                dir: '/data1/eliwang/physion_example_data/readout_train'
+                dir: '[DATA_DIR]/physion_example_data/readout_train'
             test:
-                dir: '/data1/eliwang/physion_example_data/readout_test'
+                dir: '[DATA_DIR]/physion_example_data/readout_test'
         pretraining_protocols: ['all']
         readout_protocol: 'full'
 
@@ -37,5 +37,4 @@ READOUT:
     OBJECTIVE_MODULE: physion.objective.objective
 
 CONFIG:
-    EXPERIMENT_NAME: 'physion'
-    DBNAME: 'physion-physopt'
+    DBNAME: 'physopt-example'
