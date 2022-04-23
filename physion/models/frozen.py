@@ -163,7 +163,7 @@ def _get_encoder(encoder):
         return CLIP_pretrained
     elif encoder == 'dino':
         return DINO_pretrained
-    elif encoder == 'resnet50':
+    elif encoder == 'resnet':
         return ResNet50_pretrained
     elif encoder == 'r3m':
         return R3M_pretrained

@@ -1,6 +1,6 @@
 DATA_SPACE:
     MODULE: physion.data_space
-    SEEDS: [0]
+    SEEDS: [1,2,3]
     KWARGS:
         scenarios: ['Collide', 'Contain', 'Dominoes', 'Drape', 'Drop', 'Link', 'Roll', 'Support']
         file_pattern: '*.hdf5'
@@ -19,8 +19,8 @@ DATA_SPACE:
 
 PRETRAINING:
     OBJECTIVE_MODULE: physion.objective.FROZEN
-    MODEL_NAME: 'pResNet50_MLP'
-    TRAIN_STEPS: 1000
+    MODEL_NAME: 'pResNet_LSTM'
+    TRAIN_STEPS: 0
     BATCH_SIZE: 32
     VAL_FREQ: 1000
     CKPT_FREQ: 100
@@ -31,12 +31,11 @@ PRETRAINING:
         SEQ_LEN: 25
         IMSIZE: 224
         SUBSAMPLE_FACTOR: 6
-    BATCH_SIZE: 32
 
 EXTRACTION:
     OBJECTIVE_MODULE: physion.objective.FROZEN
 
 CONFIG:
-    EXPERIMENT_NAME: 'physion-frozen'
-    # POSTGRES: 
-    #     DBNAME: 'physion-physopt'
+    EXPERIMENT_NAME: 'physion'
+    POSTGRES: 
+        DBNAME: 'physion-physopt'
