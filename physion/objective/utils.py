@@ -104,6 +104,16 @@ def get_model_attributes(model):
             'Encoder Training Task': 'Image Reconstruction',
             'Dynamics Training Task': 'Image Reconstruction',
             }
+    elif model == 'RPIN':
+        return {
+            'Encoder Type': 'RPIN encoder',
+            'Dynamics Type': 'RPIN dynamics',
+            'Encoder Pre-training Task': 'null', 
+            'Encoder Pre-training Dataset': 'null', 
+            'Encoder Pre-training Seed': 'null', 
+            'Encoder Training Task': 'L2 on position',
+            'Dynamics Training Task': 'L2 on position',
+            }
     elif model == 'FitVid':
         return {
             'Encoder Type': 'NVAE encoder',
@@ -115,7 +125,15 @@ def get_model_attributes(model):
             'Dynamics Training Task': 'Image Reconstruction',
             }
     else:
-        raise NotImplementedError(model)
+        return {
+            'Encoder Type': 'null',
+            'Dynamics Type': 'null',
+            'Encoder Pre-training Task': 'null', 
+            'Encoder Pre-training Dataset': 'null', 
+            'Encoder Pre-training Seed': 'null', 
+            'Encoder Training Task': 'null',
+            'Dynamics Training Task': 'null',
+            }
 
 def write_metrics(results, metrics_file):
     file_exists = os.path.isfile(metrics_file) # check before opening file

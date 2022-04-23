@@ -34,10 +34,8 @@ PRETRAINING:
             IN_FEAT_DIM: 256
             # prediction setting:
             INPUT_SIZE: 5 # should match STATE_LEN
-            # PRED_SIZE_TRAIN: 11 # SEQ_LEN - STATE_LEN
-            # PRED_SIZE_TEST: 11 # SEQ_LEN - STATE_LEN
-            PRED_SIZE_TRAIN: 1 # SEQ_LEN - STATE_LEN
-            PRED_SIZE_TEST: 1 # SEQ_LEN - STATE_LEN
+            PRED_SIZE_TRAIN: 11 # SEQ_LEN - STATE_LEN
+            PRED_SIZE_TEST: 11 # SEQ_LEN - STATE_LEN
             # input setting:
             INPUT_HEIGHT: 256
             INPUT_WIDTH: 256
