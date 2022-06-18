@@ -1,3 +1,11 @@
+<Fill-in the name of your server>:
+    PHYSOPT_CONFIG_DIR: '<Fill-in the path to the configs folder>'
+    PHYSOPT_OUTPUT_DIR: '<Fill-in the path to where the results are to be saved>'
+
+node02-ccncluster:
+    PHYSOPT_CONFIG_DIR: '/mnt/fs3/rmvenkat/code/for_release_physopt/physion'
+    PHYSOPT_OUTPUT_DIR: '/mnt/fs3/rmvenkat/data/for_release'
+
 node16-ccncluster:
     PHYSOPT_CONFIG_DIR: '/home/eliwang/physion/configs'
     PHYSOPT_OUTPUT_DIR: '/data/eliwang/physopt'
